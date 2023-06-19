@@ -1,18 +1,10 @@
 /*
- * Copyright 2010-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
- *
- *  http://aws.amazon.com/apache2.0
- *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
-
- * According to cos feature, we modify some class，comment, field name, etc.
+ * Copyright 2010-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. Licensed under the Apache License,
+ * Version 2.0 (the "License"). You may not use this file except in compliance with the License. A copy of the License
+ * is located at http://aws.amazon.com/apache2.0 or in the "license" file accompanying this file. This file is
+ * distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under the License. According to cos feature,
+ * we modify some class，comment, field name, etc.
  */
 package com.qcloud.cos.internal.eventstreaming;
 
@@ -21,21 +13,24 @@ import static com.qcloud.cos.internal.eventstreaming.HeaderType.fromTypeId;
 import static com.qcloud.cos.internal.eventstreaming.Utils.writeBytes;
 import static com.qcloud.cos.internal.eventstreaming.Utils.writeString;
 
-import com.qcloud.cos.utils.Base64;
-import com.qcloud.cos.utils.ValidationUtils;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.UUID;
-import org.joda.time.DateTime;
+
+import com.qcloud.cos.utils.Base64;
+import com.qcloud.cos.utils.ValidationUtils;
 
 /**
- * A typed header value. The underlying value can be obtained by calling the
- * appropriate getter.
+ * A typed header value. The underlying value can be obtained by calling the appropriate getter.
  */
 public abstract class HeaderValue {
+
     public static HeaderValue fromBoolean(boolean value) {
         return new BooleanValue(value);
     }
@@ -71,19 +66,20 @@ public abstract class HeaderValue {
         return new StringValue(string);
     }
 
-    public static HeaderValue fromTimestamp(DateTime value) {
+    public static HeaderValue fromTimestamp(LocalDateTime value) {
         return new TimestampValue(value);
     }
 
     public static HeaderValue fromDate(Date value) {
-        return new TimestampValue(new DateTime(value));
+        return new TimestampValue(LocalDateTime.ofInstant(value.toInstant(), ZoneId.systemDefault()));
     }
 
     public static HeaderValue fromUuid(UUID value) {
         return new UuidValue(value);
     }
 
-    protected HeaderValue() {}
+    protected HeaderValue() {
+    }
 
     public abstract HeaderType getType();
 
@@ -119,12 +115,13 @@ public abstract class HeaderValue {
         throw new IllegalStateException();
     }
 
-    public DateTime getTimestamp() {
+    public LocalDateTime getTimestamp() {
         throw new IllegalStateException("Expected timestamp, but type was " + getType().name());
     }
 
     public Date getDate() {
-        return getTimestamp().toDate();
+        return Date.from(getTimestamp().atZone(ZoneId.systemDefault())
+                .toInstant());
     }
 
     public UUID getUuid() {
@@ -167,6 +164,7 @@ public abstract class HeaderValue {
     }
 
     private static final class BooleanValue extends HeaderValue {
+
         private final boolean value;
 
         private BooleanValue(boolean value) {
@@ -188,12 +186,15 @@ public abstract class HeaderValue {
         }
 
         @Override
-        void encodeValue(DataOutputStream dos) {}
+        void encodeValue(DataOutputStream dos) {
+        }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
 
             BooleanValue that = (BooleanValue) o;
 
@@ -216,6 +217,7 @@ public abstract class HeaderValue {
     }
 
     private static final class ByteValue extends HeaderValue {
+
         private final byte value;
 
         private ByteValue(byte value) {
@@ -233,12 +235,15 @@ public abstract class HeaderValue {
         }
 
         @Override
-        void encodeValue(DataOutputStream dos) {}
+        void encodeValue(DataOutputStream dos) {
+        }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
 
             ByteValue that = (ByteValue) o;
 
@@ -257,6 +262,7 @@ public abstract class HeaderValue {
     }
 
     private static final class ShortValue extends HeaderValue {
+
         private final short value;
 
         private ShortValue(short value) {
@@ -274,12 +280,15 @@ public abstract class HeaderValue {
         }
 
         @Override
-        void encodeValue(DataOutputStream dos) {}
+        void encodeValue(DataOutputStream dos) {
+        }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
 
             ShortValue that = (ShortValue) o;
 
@@ -298,6 +307,7 @@ public abstract class HeaderValue {
     }
 
     private static final class IntegerValue extends HeaderValue {
+
         private final int value;
 
         private IntegerValue(int value) {
@@ -321,8 +331,10 @@ public abstract class HeaderValue {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
 
             IntegerValue that = (IntegerValue) o;
 
@@ -341,6 +353,7 @@ public abstract class HeaderValue {
     }
 
     private static final class LongValue extends HeaderValue {
+
         private final long value;
 
         private LongValue(long value) {
@@ -364,8 +377,10 @@ public abstract class HeaderValue {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
 
             LongValue longValue = (LongValue) o;
 
@@ -384,6 +399,7 @@ public abstract class HeaderValue {
     }
 
     private static final class ByteArrayValue extends HeaderValue {
+
         private final byte[] value;
 
         private ByteArrayValue(byte[] value) {
@@ -407,8 +423,10 @@ public abstract class HeaderValue {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
 
             ByteArrayValue that = (ByteArrayValue) o;
 
@@ -427,6 +445,7 @@ public abstract class HeaderValue {
     }
 
     private static final class StringValue extends HeaderValue {
+
         private final String value;
 
         private StringValue(String value) {
@@ -450,8 +469,10 @@ public abstract class HeaderValue {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
 
             StringValue that = (StringValue) o;
 
@@ -470,15 +491,18 @@ public abstract class HeaderValue {
     }
 
     private static final class TimestampValue extends HeaderValue {
-        private final DateTime value;
 
-        private TimestampValue(DateTime value) {
+        private final LocalDateTime value;
+
+        private TimestampValue(LocalDateTime value) {
             this.value = ValidationUtils.assertNotNull(value, "value");
         }
 
         static TimestampValue decode(ByteBuffer buf) {
             long epochMillis = buf.getLong();
-            return new TimestampValue(new DateTime(epochMillis));
+
+            return new TimestampValue(
+                    LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMillis), ZoneId.systemDefault()));
         }
 
         @Override
@@ -487,19 +511,23 @@ public abstract class HeaderValue {
         }
 
         @Override
-        public DateTime getTimestamp() {
+        public LocalDateTime getTimestamp() {
             return value;
         }
 
         @Override
         void encodeValue(DataOutputStream dos) throws IOException {
-            dos.writeLong(value.getMillis());
+            dos.writeLong(value.atZone(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli());
         }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
 
             TimestampValue that = (TimestampValue) o;
 
@@ -518,6 +546,7 @@ public abstract class HeaderValue {
     }
 
     private static final class UuidValue extends HeaderValue {
+
         private final UUID value;
 
         private UuidValue(UUID value) {
@@ -548,8 +577,10 @@ public abstract class HeaderValue {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
 
             UuidValue uuidValue = (UuidValue) o;
 

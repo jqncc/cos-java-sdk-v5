@@ -85,7 +85,7 @@ import com.qcloud.cos.model.fetch.GetAsyncFetchTaskResult;
 import com.qcloud.cos.model.fetch.PutAsyncFetchTaskRequest;
 import com.qcloud.cos.model.fetch.PutAsyncFetchTaskResult;
 import com.qcloud.cos.model.inventory.InventoryConfiguration;
-import com.squareup.okhttp.internal.http.HttpMethod;
+
 
 
 public interface COS extends COSDirectSpi {
