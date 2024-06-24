@@ -19,10 +19,14 @@
 package com.qcloud.cos.http;
 
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import com.qcloud.cos.auth.COSCredentials;
 import com.qcloud.cos.event.ProgressListener;
+import com.qcloud.cos.exception.ExceptionLogDetail;
 import com.qcloud.cos.internal.CosServiceRequest;
 
 public class CosHttpRequest<T extends CosServiceRequest> {
@@ -51,6 +55,12 @@ public class CosHttpRequest<T extends CosServiceRequest> {
     private ProgressListener progressListener;
 
     private String ciSpecialEndParameter;
+
+    private String bucketName;
+
+    private COSCredentials cosCredentials;
+
+    private List<ExceptionLogDetail> logDetails = new ArrayList<ExceptionLogDetail>();
 
     public CosHttpRequest(T originRequest) {
         this.originRequest = originRequest;
@@ -146,6 +156,30 @@ public class CosHttpRequest<T extends CosServiceRequest> {
 
     public void setCiSpecialEndParameter(String ciSpecialEndParameter) {
         this.ciSpecialEndParameter = ciSpecialEndParameter;
+    }
+
+    public String getBucketName() {
+        return bucketName;
+    }
+
+    public void setBucketName(String bucketName) {
+        this.bucketName = bucketName;
+    }
+
+    public COSCredentials getCosCredentials() {
+        return cosCredentials;
+    }
+
+    public void setCosCredentials(COSCredentials cosCredentials) {
+        this.cosCredentials = cosCredentials;
+    }
+
+    public void addLogDetails(ExceptionLogDetail logDetail) {
+        logDetails.add(logDetail);
+    }
+
+    public List<ExceptionLogDetail> getExceptionsLogDetails() {
+        return logDetails;
     }
 
     @Override

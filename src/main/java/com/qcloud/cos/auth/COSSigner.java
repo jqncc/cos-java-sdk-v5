@@ -67,7 +67,7 @@ public class COSSigner {
         needSignedHeaderSet.add("if-unmodified-since");
         needSignedHeaderSet.add("origin");
         needSignedHeaderSet.add("range");
-        needSignedHeaderSet.add("transfer-encoding");
+        needSignedHeaderSet.add("transfer-encoding");  
     }
 
     private boolean isAnonymous(COSCredentials cred) {
@@ -100,8 +100,7 @@ public class COSSigner {
                                         COSCredentials cred,
                                         Date expiredTime) {
         Date startTime = new Date();
-        return buildAuthorizationStr(methodName, resouce_path, new HashMap<>(), new HashMap<>(),
-                cred, startTime, expiredTime, true);
+        return buildAuthorizationStr(methodName, resouce_path, new HashMap<>(), new HashMap<>(), cred, startTime, expiredTime, true);
     }
 
     public String buildAuthorizationStr(HttpMethodName methodName, String resouce_path,

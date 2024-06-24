@@ -26,9 +26,16 @@ import java.util.List;
 
 import com.qcloud.cos.internal.XmlResponsesSaxParser.CompleteMultipartUploadHandler;
 import com.qcloud.cos.internal.XmlResponsesSaxParser.CopyObjectResultHandler;
+import com.qcloud.cos.internal.cihandler.AuditingStrategyHandler;
+import com.qcloud.cos.internal.cihandler.AuditingTextLibHandler;
+import com.qcloud.cos.internal.cihandler.CICommonHandler;
+import com.qcloud.cos.internal.cihandler.CIJsonHandler;
 import com.qcloud.cos.model.*;
 import com.qcloud.cos.model.bucketcertificate.BucketGetDomainCertificate;
 import com.qcloud.cos.model.ciModel.auditing.AudioAuditingResponse;
+import com.qcloud.cos.model.ciModel.auditing.AuditingStrategyListResponse;
+import com.qcloud.cos.model.ciModel.auditing.AuditingStrategyResponse;
+import com.qcloud.cos.model.ciModel.auditing.AuditingTextLibResponse;
 import com.qcloud.cos.model.ciModel.auditing.BatchImageAuditingResponse;
 import com.qcloud.cos.model.ciModel.auditing.DocumentAuditingResponse;
 import com.qcloud.cos.model.ciModel.auditing.ImageAuditingResponse;
@@ -39,6 +46,7 @@ import com.qcloud.cos.model.ciModel.bucket.DocBucketResponse;
 import com.qcloud.cos.model.ciModel.bucket.MediaBucketResponse;
 import com.qcloud.cos.model.ciModel.image.AutoTranslationBlockResponse;
 import com.qcloud.cos.model.ciModel.image.DetectFaceResponse;
+import com.qcloud.cos.model.ciModel.image.ImageInspectRequest;
 import com.qcloud.cos.model.ciModel.image.ImageLabelResponse;
 import com.qcloud.cos.model.ciModel.image.ImageLabelV2Response;
 import com.qcloud.cos.model.ciModel.image.ImageSearchResponse;
@@ -839,7 +847,7 @@ public class Unmarshallers {
     }
 
     public static final class ListJobsResultUnmarshaller
-        implements Unmarshaller<ListJobsResult, InputStream> {
+            implements Unmarshaller<ListJobsResult, InputStream> {
 
         public ListJobsResult unmarshall(InputStream in) throws Exception {
             return new XmlResponsesSaxParser().parseListJobsResult(in).getResult();
@@ -865,30 +873,74 @@ public class Unmarshallers {
     }
 
     public static final class AutoTranslationBlockUnmarshaller
-                implements Unmarshaller<AutoTranslationBlockResponse, InputStream> {
+            implements Unmarshaller<AutoTranslationBlockResponse, InputStream> {
 
-            public AutoTranslationBlockResponse unmarshall(InputStream in) throws Exception {
-                return new XmlResponsesSaxParser()
-                        .parseAutoTranslationBlockResponse(in).getResponse();
-            }
+        public AutoTranslationBlockResponse unmarshall(InputStream in) throws Exception {
+            return new XmlResponsesSaxParser()
+                    .parseAutoTranslationBlockResponse(in).getResponse();
+        }
     }
 
     public static final class DetectFaceUnmarshaller
-                implements Unmarshaller<DetectFaceResponse, InputStream> {
+            implements Unmarshaller<DetectFaceResponse, InputStream> {
 
-            public DetectFaceResponse unmarshall(InputStream in) throws Exception {
-                return new XmlResponsesSaxParser()
-                        .parseDetectFaceResponse(in).getResponse();
-            }
+        public DetectFaceResponse unmarshall(InputStream in) throws Exception {
+            return new XmlResponsesSaxParser()
+                    .parseDetectFaceResponse(in).getResponse();
+        }
     }
 
     public static final class AIGameRecUnmarshaller
-                implements Unmarshaller<AIGameRecResponse, InputStream> {
+            implements Unmarshaller<AIGameRecResponse, InputStream> {
 
-            public AIGameRecResponse unmarshall(InputStream in) throws Exception {
-                return new XmlResponsesSaxParser()
-                        .parseAIGameRecResponse(in).getResponse();
-            }
+        public AIGameRecResponse unmarshall(InputStream in) throws Exception {
+            return new XmlResponsesSaxParser()
+                    .parseAIGameRecResponse(in).getResponse();
+        }
     }
 
+    public static final class AuditingStrategyUnmarshaller
+            implements Unmarshaller<AuditingStrategyResponse, InputStream> {
+
+        public AuditingStrategyResponse unmarshall(InputStream in) {
+            return new AuditingStrategyHandler().getResponse(in);
+        }
+    }
+    public static final class AuditingStrategyListUnmarshaller
+            implements Unmarshaller<AuditingStrategyListResponse, InputStream> {
+
+        public AuditingStrategyListResponse unmarshall(InputStream in) {
+            return new AuditingStrategyHandler().getResponseList(in);
+        }
+    }
+    public static final class AuditingTextLibUnmarshaller
+            implements Unmarshaller<AuditingTextLibResponse, InputStream> {
+
+        public AuditingTextLibResponse unmarshall(InputStream in) {
+            return new AuditingTextLibHandler().getResponse(in);
+        }
+    }
+
+    public static final class CICommonUnmarshaller<T> implements Unmarshaller<T, InputStream> {
+        private Class<T> tClass;
+
+        public CICommonUnmarshaller(Class<T> cls) {
+            this.tClass = cls;
+        }
+
+        public T unmarshall(InputStream in) {
+            return new CICommonHandler<T>().getResponse(in,tClass);
+        }
+    }
+
+    public static class CIJsonUnmarshaller<T> implements Unmarshaller<T, InputStream>{
+        private Class<T> tClass;
+        public CIJsonUnmarshaller(Class<T> aClass) {
+            this.tClass = aClass;
+        }
+        @Override
+        public T unmarshall(InputStream in) throws Exception {
+            return new CIJsonHandler<T>().getResponse(in,tClass);
+        }
+    }
 }

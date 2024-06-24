@@ -2,6 +2,7 @@ package com.qcloud.cos.model.ciModel.job;
 
 import com.qcloud.cos.internal.CIServiceRequest;
 import com.qcloud.cos.model.ciModel.common.MediaInputObject;
+import com.thoughtworks.xstream.annotations.XStreamAlias;
 
 import java.io.Serializable;
 
@@ -10,18 +11,46 @@ import java.io.Serializable;
  */
 
 public class MediaJobObject extends CIServiceRequest implements Serializable {
+    @XStreamAlias("Code")
     private String code;
+
+    @XStreamAlias("Message")
     private String message;
+
+    @XStreamAlias("JobId")
     private String jobId;
+
+    @XStreamAlias("State")
     private String state;
+
+    @XStreamAlias("CreationTime")
     private String creationTime;
+
+    @XStreamAlias("EndTime")
     private String endTime;
+
+    @XStreamAlias("QueueId")
     private String queueId;
+
+    @XStreamAlias("Tag")
     private String tag;
+
+    @XStreamAlias("Name")
     private String name;
+
+    @XStreamAlias("Type")
     private String type;
+
+    @XStreamAlias("Progress")
     private String progress;
+
+    @XStreamAlias("QueueType")
+    private String queueType;
+
+    @XStreamAlias("Input")
     private MediaInputObject input = new MediaInputObject();
+
+    @XStreamAlias("Operation")
     private MediaJobOperation operation = new MediaJobOperation();
 
     public String getCode() {
@@ -134,6 +163,14 @@ public class MediaJobObject extends CIServiceRequest implements Serializable {
         this.progress = progress;
     }
 
+    public String getQueueType() {
+        return queueType;
+    }
+
+    public void setQueueType(String queueType) {
+        this.queueType = queueType;
+    }
+
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("MediaJobObject{");
@@ -147,6 +184,8 @@ public class MediaJobObject extends CIServiceRequest implements Serializable {
         sb.append(", tag='").append(tag).append('\'');
         sb.append(", name='").append(name).append('\'');
         sb.append(", type='").append(type).append('\'');
+        sb.append(", progress='").append(progress).append('\'');
+        sb.append(", queueType='").append(queueType).append('\'');
         sb.append(", input=").append(input);
         sb.append(", operation=").append(operation);
         sb.append('}');

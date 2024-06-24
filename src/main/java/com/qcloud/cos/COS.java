@@ -31,7 +31,9 @@ import com.qcloud.cos.model.bucketcertificate.BucketDomainCertificateRequest;
 import com.qcloud.cos.model.bucketcertificate.BucketGetDomainCertificate;
 import com.qcloud.cos.model.bucketcertificate.BucketPutDomainCertificate;
 import com.qcloud.cos.model.bucketcertificate.SetBucketDomainCertificateRequest;
+import com.qcloud.cos.model.ciModel.ai.*;
 import com.qcloud.cos.model.ciModel.common.CImageProcessRequest;
+import com.qcloud.cos.model.ciModel.hls.*;
 import com.qcloud.cos.model.ciModel.image.*;
 import com.qcloud.cos.exception.CosClientException;
 import com.qcloud.cos.exception.CosServiceException;
@@ -45,20 +47,12 @@ import com.qcloud.cos.model.ciModel.bucket.DocBucketResponse;
 import com.qcloud.cos.model.ciModel.bucket.MediaBucketRequest;
 import com.qcloud.cos.model.ciModel.bucket.MediaBucketResponse;
 import com.qcloud.cos.model.ciModel.common.ImageProcessRequest;
-import com.qcloud.cos.model.ciModel.job.BatchJobRequest;
-import com.qcloud.cos.model.ciModel.job.BatchJobResponse;
-import com.qcloud.cos.model.ciModel.job.DocHtmlRequest;
-import com.qcloud.cos.model.ciModel.job.DocJobListRequest;
-import com.qcloud.cos.model.ciModel.job.DocJobListResponse;
-import com.qcloud.cos.model.ciModel.job.DocJobRequest;
-import com.qcloud.cos.model.ciModel.job.DocJobResponse;
-import com.qcloud.cos.model.ciModel.job.FileProcessJobResponse;
-import com.qcloud.cos.model.ciModel.job.FileProcessRequest;
-import com.qcloud.cos.model.ciModel.job.MediaJobResponse;
-import com.qcloud.cos.model.ciModel.job.MediaJobsRequest;
-import com.qcloud.cos.model.ciModel.job.MediaListJobResponse;
+import com.qcloud.cos.model.ciModel.job.*;
+import com.qcloud.cos.model.ciModel.job.v2.*;
 import com.qcloud.cos.model.ciModel.mediaInfo.MediaInfoRequest;
 import com.qcloud.cos.model.ciModel.mediaInfo.MediaInfoResponse;
+import com.qcloud.cos.model.ciModel.metaInsight.CreateDatasetRequest;
+import com.qcloud.cos.model.ciModel.metaInsight.CreateDatasetResponse;
 import com.qcloud.cos.model.ciModel.persistence.AIGameRecResponse;
 import com.qcloud.cos.model.ciModel.persistence.CIUploadResult;
 import com.qcloud.cos.model.ciModel.persistence.AIRecRequest;
@@ -2851,16 +2845,16 @@ public interface COS extends COSDirectSpi {
     public AppendObjectResult appendObject(AppendObjectRequest appendObjectRequest)
             throws CosServiceException, CosClientException;
 
-//    /**
-//     * rename object, which contains both file or dir in fs
-//     *
-//     * @param renameRequest
-//     * @return
-//     * @throws CosServiceException
-//     * @throws CosClientException
-//     */
-//    public void rename(RenameRequest renameRequest)
-//            throws CosServiceException, CosClientException;
+    /**
+     * rename object, which contains both file or dir in fs
+     *
+     * @param renameRequest
+     * @return
+     * @throws CosServiceException
+     * @throws CosClientException
+     */
+    public void rename(RenameRequest renameRequest)
+            throws CosServiceException, CosClientException;
 
     /**
      * This operation filters the contents of an COS object based on a simple Structured Query Language (SQL) statement.
@@ -2915,6 +2909,8 @@ public interface COS extends COSDirectSpi {
      * @param req
      */
     MediaJobResponse createMediaJobs(MediaJobsRequest req) ;
+
+    MediaJobResponseV2 createMediaJobsV2(MediaJobsRequestV2 req);
 
     /**
      * CancelMediaJob 接口用于取消一个任务。  https://cloud.tencent.com/document/product/460/38939
@@ -3106,6 +3102,8 @@ public interface COS extends COSDirectSpi {
      */
     Boolean createDocProcessBucket(DocBucketRequest request);
 
+    Boolean createMediaProcessBucket(MediaBucketRequest mediaBucketRequest);
+
     /**
      * GenerateDocPreviewHtmlUrl  查询账号下已开通文档预览功能的bucket
      */
@@ -3121,8 +3119,10 @@ public interface COS extends COSDirectSpi {
      */
     WebpageAuditingResponse describeWebpageAuditingJob(WebpageAuditingRequest request);
 
+    @Deprecated
     PutAsyncFetchTaskResult putAsyncFetchTask(PutAsyncFetchTaskRequest request);
 
+    @Deprecated
     GetAsyncFetchTaskResult getAsyncFetchTask(GetAsyncFetchTaskRequest request);
 
     ImageAuditingResponse describeAuditingImageJob(DescribeImageAuditingRequest imageAuditingRequest);
@@ -3203,6 +3203,63 @@ public interface COS extends COSDirectSpi {
     AIGameRecResponse aiGameRec(AIRecRequest request);
 
     Boolean cancelLiveAuditing(VideoAuditingRequest request);
+
+    AuditingStrategyResponse addAuditingStrategy(AuditingStrategyRequest request);
+    AuditingStrategyResponse updateAuditingStrategy(AuditingStrategyRequest request);
+    AuditingStrategyResponse describeAuditingStrategy(AuditingStrategyRequest request);
+    AuditingStrategyListResponse describeAuditingStrategyList(AuditingStrategyRequest request);
+
+    AuditingTextLibResponse addAuditingTextLib(AuditingTextLibRequest request);
+
+    AuditingTextLibResponse describeAuditingTextLib(AuditingTextLibRequest request);
+
+    AuditingTextLibResponse updateAuditingTextLib(AuditingTextLibRequest request);
+
+    AuditingTextLibResponse deleteAuditingTextLib(AuditingTextLibRequest request);
+
+    AuditingKeywordResponse addAuditingLibKeyWord(AuditingKeywordRequest request);
+
+    AuditingKeywordResponse describeAuditingKeyWordList(AuditingKeywordRequest request);
+
+    AuditingKeywordResponse deleteAuditingKeyWord(AuditingKeywordRequest request);
+
+    ImageInspectResponse getImageInspect(ImageInspectRequest request);
+
+    MediaJobResponseV2 describeMediaJobV2(MediaJobsRequestV2 req);
+
+    InputStream aIImageColoring(AIImageColoringRequest customRequest);
+
+    PostSpeechRecognitionResponse postSpeechRecognition(PostSpeechRecognitionRequest postSpeechRecognitionRequest);
+
+    boolean faceSearchBucket(FaceSearchBucketRequest customRequest);
+
+    CreatePersonResponse createPerson(CreatePersonRequest createPersonRequest);
+
+    AddPersonFaceResponse addPersonFace(AddPersonFaceRequest addPersonFaceRequest);
+
+    SearchPersonFaceResponse searchPersonFace(SearchPersonFaceRequest customRequest);
+
+    boolean deletePersonFace(DeletePersonFaceRequest customRequest);
+
+    DNADbFilesResponse describeMediaDnaDbFiles(DNADbFilesRequest request);
+
+    DNADbConfigsResponse describeMediaDnaDbs(DNADbConfigsRequest request);
+
+    ZipPreviewResponse zipPreview(ZipPreviewRequest request);
+
+    CreateHLSPlayKeyResponse createHLSPlayKey(CreateHLSPlayKeyRequest customRequest);
+
+    GetHLSPlayKeyResponse getHLSPlayKey(GetHLSPlayKeyRequest customRequest);
+
+    UpdataHLSPlayKeyResponse updataHLSPlayKey(UpdataHLSPlayKeyRequest customRequest);
+
+    MediaListTemplateResponse describeMediaTemplatesV2(MediaTemplateRequest request);
+
+    InputStream getPlayList(GetPlayListRequest request);
+
+    RecognizeLogoResponse recognizeLogo(RecognizeLogoRequest customRequest);
+
+    CreateDatasetResponse createDataset(CreateDatasetRequest customRequest);
 }
 
 

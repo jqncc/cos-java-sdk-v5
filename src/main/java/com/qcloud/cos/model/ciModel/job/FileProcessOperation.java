@@ -1,13 +1,28 @@
 package com.qcloud.cos.model.ciModel.job;
 
 import com.qcloud.cos.model.ciModel.common.MediaOutputObject;
+import com.thoughtworks.xstream.annotations.XStreamAlias;
 
 public class FileProcessOperation {
+    @XStreamAlias("FileCompressConfig")
     private FileCompressConfig fileCompressConfig;
+
+    @XStreamAlias("FileUncompressConfig")
     private FileUnCompressConfig fileUnCompressConfig;
+
+    @XStreamAlias("FileHashCodeConfig")
     private FileHashCodeConfig fileHashCodeConfig;
+
+    @XStreamAlias("FileHashCodeResult")
     private FileHashCodeResult fileHashCodeResult;
+
+    @XStreamAlias("FileCompressResult")
+    private FileCompressResult fileCompressResult;
+
+    @XStreamAlias("UserData")
     private String userData;
+
+    @XStreamAlias("Output")
     private MediaOutputObject output;
 
     public FileCompressConfig getFileCompressConfig() {
@@ -71,6 +86,17 @@ public class FileProcessOperation {
 
     public void setFileHashCodeResult(FileHashCodeResult fileHashCodeResult) {
         this.fileHashCodeResult = fileHashCodeResult;
+    }
+
+    public FileCompressResult getFileCompressResult() {
+        if (fileCompressResult == null) {
+            fileCompressResult = new FileCompressResult();
+        }
+        return fileCompressResult;
+    }
+
+    public void setFileCompressResult(FileCompressResult fileCompressResult) {
+        this.fileCompressResult = fileCompressResult;
     }
 
     @Override

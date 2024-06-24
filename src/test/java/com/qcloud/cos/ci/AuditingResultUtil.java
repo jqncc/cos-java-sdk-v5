@@ -20,6 +20,9 @@ import com.qcloud.cos.model.ciModel.auditing.SectionInfo;
 import com.qcloud.cos.model.ciModel.auditing.SnapshotInfo;
 import com.qcloud.cos.model.ciModel.auditing.TerroristInfo;
 
+/**
+ * 审核结果获取工具类 目前场景以下几类： Porn（涉黄）、Terrorism（涉暴恐）、Politics（政治敏感）、Ads（广告）、Illegal（违法）、Abuse（谩骂）
+ */
 public class AuditingResultUtil {
 
     private static AuditingResult result;
@@ -173,4 +176,5 @@ public class AuditingResultUtil {
             }
         }
     }
+
 }

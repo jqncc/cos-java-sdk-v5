@@ -31,9 +31,16 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.Date;
+import java.util.Objects;
 
 import com.qcloud.cos.ClientConfig;
 import com.qcloud.cos.Headers;
+import com.qcloud.cos.auth.COSCredentials;
+import com.qcloud.cos.auth.COSSigner;
+import com.qcloud.cos.region.Region;
 import com.qcloud.cos.event.ProgressInputStream;
 import com.qcloud.cos.event.ProgressListener;
 import com.qcloud.cos.exception.ClientExceptionConstants;
@@ -41,12 +48,14 @@ import com.qcloud.cos.exception.CosClientException;
 import com.qcloud.cos.exception.CosServiceException;
 import com.qcloud.cos.exception.CosServiceException.ErrorType;
 import com.qcloud.cos.exception.ResponseNotCompleteException;
+import com.qcloud.cos.exception.ExceptionLogDetail;
 import com.qcloud.cos.internal.CosErrorResponseHandler;
 import com.qcloud.cos.internal.CosServiceRequest;
 import com.qcloud.cos.internal.CosServiceResponse;
 import com.qcloud.cos.internal.ReleasableInputStream;
 import com.qcloud.cos.internal.ResettableInputStream;
 import com.qcloud.cos.internal.SdkBufferedInputStream;
+import com.qcloud.cos.internal.CIWorkflowServiceRequest;
 import com.qcloud.cos.retry.BackoffStrategy;
 import com.qcloud.cos.retry.RetryPolicy;
 import com.qcloud.cos.utils.CodecUtils;
@@ -132,6 +141,20 @@ public class DefaultCosHttpClient implements CosHttpClient {
 
     @Override
     public void shutdown() {
+        if (clientConfig.isPrintShutdownStackTrace()) {
+            StackTraceElement[] stackTraces = Thread.currentThread().getStackTrace();
+
+            StringBuilder trace = new StringBuilder("shutdown stackTrace:");
+            for (int i = 1; i < stackTraces.length; i++) {
+                trace.append("\n");
+                StackTraceElement element = stackTraces[i];
+                String stackTrace = "Class: " + element.getClassName()
+                        + ", Method: " + element.getMethodName()
+                        + ", Line: " + element.getLineNumber();
+                trace.append(stackTrace);
+            }
+            log.info(trace.toString());
+        }
         this.idleConnectionMonitor.shutdown();
     }
 
@@ -402,7 +425,11 @@ public class DefaultCosHttpClient implements CosHttpClient {
     }
 
     private <X extends CosServiceRequest> boolean isRetryableRequest(CosHttpRequest<X> request) {
-        return request.getContent() == null || request.getContent().markSupported();
+        if (request.getContent() == null || request.getContent().markSupported()) {
+            return true;
+        }
+        log.info("The content of the request is not null and not markSupported, the request is not retryable");
+        return false;
     }
 
     private <X extends CosServiceRequest> boolean shouldRetry(CosHttpRequest<X> request, HttpResponse response,
@@ -462,13 +489,17 @@ public class DefaultCosHttpClient implements CosHttpClient {
         while (true) {
             try {
                 checkInterrupted();
-                if (originalContent instanceof BufferedInputStream
-                        && originalContent.markSupported()) {
-                    // Mark everytime for BufferedInputStream, since the marker could have been
-                    // invalidated
-                    final int readLimit = clientConfig.getReadLimit();
-                    originalContent.mark(readLimit);
-                }
+                /**
+                 * 目前sdk所有的上传请求都会把流包装成ReleasableInputStream
+                 * 所以这里不再需要判断BufferedInputStream的子类了
+                 * */
+//                if (originalContent instanceof BufferedInputStream
+//                        && originalContent.markSupported()) {
+//                    // Mark everytime for BufferedInputStream, since the marker could have been
+//                    // invalidated
+//                    final int readLimit = clientConfig.getReadLimit();
+//                    originalContent.mark(readLimit);
+//                }
                 // 如果是重试的则恢复流
                 if (retryIndex != 0 && originalContent != null) {
                     originalContent.reset();
@@ -484,30 +515,36 @@ public class DefaultCosHttpClient implements CosHttpClient {
                 checkResponse(request, httpRequest, httpResponse);
                 break;
             } catch (CosServiceException cse) {
-                if (cse.getStatusCode() >= 500) {
-                    String errorMsg = String.format("failed to execute http request, due to service exception,"
-                                    + " httpRequest: %s, retryIdx:%d, maxErrorRetry:%d", request.toString(),
-                            retryIndex, maxErrorRetry);
-                    log.error(errorMsg, cse);
-                }
                 closeHttpResponseStream(httpResponse);
+                String errorMsg = String.format("failed to execute http request due to service exception, request timeStamp %d,"
+                                + " httpRequest: %s, retryIdx:%d, maxErrorRetry:%d", System.currentTimeMillis(), request,
+                        retryIndex, maxErrorRetry);
+                request.addLogDetails(new ExceptionLogDetail(cse, errorMsg));
                 if (!shouldRetry(request, httpResponse, cse, retryIndex, retryPolicy)) {
+                    int status_code_thresh = clientConfig.getErrorLogStatusCodeThresh();
+                    if (status_code_thresh < 0) {
+                        status_code_thresh = 500;
+                    }
+                    if (cse.getStatusCode() >= status_code_thresh) {
+                        handleLog(request);
+                    }
                     throw cse;
                 }
+                changeEndpointForRetry(request, httpResponse, retryIndex);
             } catch (CosClientException cce) {
-                String errorMsg = String.format("failed to execute http request, due to client exception,"
-                                + " httpRequest: %s, retryIdx:%d, maxErrorRetry:%d",
-                        request.toString(), retryIndex, maxErrorRetry);
-                log.info(errorMsg, cce);
                 closeHttpResponseStream(httpResponse);
+                String errorMsg = String.format("failed to execute http request due to client exception, request timeStamp %d,"
+                                + " httpRequest: %s, retryIdx:%d, maxErrorRetry:%d", System.currentTimeMillis(), request,
+                        retryIndex, maxErrorRetry);
+                request.addLogDetails(new ExceptionLogDetail(cce, errorMsg));
                 if (!shouldRetry(request, httpResponse, cce, retryIndex, retryPolicy)) {
-                    log.error(errorMsg, cce);
+                    handleLog(request);
                     throw cce;
                 }
+                changeEndpointForRetry(request, httpResponse, retryIndex);
             } catch (Exception exp) {
                 String expName = exp.getClass().getName();
-                String errorMsg = String.format("httpClient execute occur an unknown exception:%s, httpRequest: %s"
-                        , expName, request);
+                String errorMsg = String.format("httpClient execute occur an unknown exception:%s, httpRequest: %s", expName, request);
                 closeHttpResponseStream(httpResponse);
                 log.error(errorMsg, exp);
                 throw new CosClientException(errorMsg, exp);
@@ -580,7 +617,7 @@ public class DefaultCosHttpClient implements CosHttpClient {
         }
     }
 
-    private HttpResponse executeRequest(HttpContext context, HttpRequestBase httpRequest) throws Exception{
+    private HttpResponse executeRequest(HttpContext context, HttpRequestBase httpRequest) throws Exception {
         HttpResponse httpResponse = null;
         try {
             httpResponse = executeOneRequest(context, httpRequest);
@@ -593,7 +630,7 @@ public class DefaultCosHttpClient implements CosHttpClient {
         } catch (TimeoutException e) {
             httpRequest.abort();
             String errorMsg = "ExecutorService: time out after waiting  " + this.clientConfig.getRequestTimeout()/1000 + " seconds";
-            throw new CosClientException(errorMsg, ClientExceptionConstants.REQUEST_TIMEOUT,e);
+            throw new CosClientException(errorMsg, ClientExceptionConstants.REQUEST_TIMEOUT, e);
         } catch (ExecutionException e) {
             httpRequest.abort();
             if (e.getCause() instanceof IOException) {
@@ -603,5 +640,61 @@ public class DefaultCosHttpClient implements CosHttpClient {
         }
 
         return httpResponse;
+    }
+
+    private <Y extends CosServiceRequest> void handleLog(CosHttpRequest<Y> request) {
+        for (ExceptionLogDetail logDetail : request.getExceptionsLogDetails()) {
+            log.error(logDetail.getErrMsg(), logDetail.getException());
+        }
+    }
+
+    private <Y extends CosServiceRequest> void changeEndpointForRetry(CosHttpRequest<Y> request, HttpResponse httpResponse, int retryIndex) {
+        if (!clientConfig.isChangeEndpointRetry() || retryIndex != (maxErrorRetry - 1)) {
+            return;
+        }
+
+        if (httpResponse != null) {
+            for (Header header : httpResponse.getAllHeaders()) {
+                if (Objects.equals(header.getName(), Headers.REQUEST_ID)) {
+                    String value = CodecUtils.convertFromIso88591ToUtf8(header.getValue());
+                    if (!value.isEmpty()) {
+                        return;
+                    }
+                }
+            }
+        }
+
+        Map<String, String> reqHeaders = request.getHeaders();
+        if (!reqHeaders.isEmpty() && reqHeaders.containsKey(Headers.HOST)) {
+            String lastEndpoint = request.getEndpoint();
+            String lastHost = reqHeaders.get(Headers.HOST);
+            String regex = ".+-\\d+\\.cos\\..+\\.myqcloud\\.com";
+            Pattern pattern = Pattern.compile(regex);
+            Matcher matcherEndpoint = pattern.matcher(lastEndpoint);
+            Matcher matcherHost = pattern.matcher(lastHost);
+            boolean isAccEndpoint = lastEndpoint.endsWith("cos.accelerate.myqcloud.com");
+            boolean isAccHost = lastHost.endsWith("cos.accelerate.myqcloud.com");
+
+            if (matcherEndpoint.matches() && matcherHost.matches() && !isAccEndpoint && !isAccHost) {
+                String retryEndpoint = String.format("%s.%s.tencentcos.cn", request.getBucketName(), Region.formatRegion(clientConfig.getRegion()));
+                request.addHeader(Headers.HOST, retryEndpoint);
+                COSSigner cosSigner = clientConfig.getCosSigner();
+                COSCredentials cosCredentials = request.getCosCredentials();
+                CosServiceRequest cosServiceRequest = request.getOriginalRequest();
+                Date expiredTime = new Date(System.currentTimeMillis() + clientConfig.getSignExpired() * 1000);
+                boolean isCIWorkflowRequest = cosServiceRequest instanceof CIWorkflowServiceRequest;
+                cosSigner.setCIWorkflowRequest(isCIWorkflowRequest);
+                cosSigner.sign(request, cosCredentials, expiredTime);
+
+                String endpointAddr = clientConfig.getEndpointResolver().resolveGeneralApiEndpoint(retryEndpoint);
+
+                String fixedEndpointAddr = request.getOriginalRequest().getFixedEndpointAddr();
+                if (fixedEndpointAddr != null) {
+                    request.setEndpoint(fixedEndpointAddr);
+                } else {
+                    request.setEndpoint(endpointAddr);
+                }
+            }
+        }
     }
 }
