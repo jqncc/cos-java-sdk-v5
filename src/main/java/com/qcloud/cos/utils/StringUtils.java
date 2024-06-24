@@ -15,7 +15,9 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.Date;
+import java.util.Deque;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Utilities for converting objects to strings.

@@ -21,3 +21,9 @@ JSON API 请参照 https://github.com/tencentyun/cos-java-sdk-v4
 
 ## 常见问题:
 请参考[FAQ](https://cloud.tencent.com/document/product/436/12263#faq)
+
+---
+
+个人修改:
+1. JDK最小依赖升级到JDK1.8
+2. 删除依赖包: jodd-time
