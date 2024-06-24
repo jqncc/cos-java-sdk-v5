@@ -1,20 +1,11 @@
 /*
- * Copyright 2010-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
- *
- *  http://aws.amazon.com/apache2.0
- *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
-
- * According to cos feature, we modify some class，comment, field name, etc.
+ * Copyright 2010-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. Licensed under the Apache License,
+ * Version 2.0 (the "License"). You may not use this file except in compliance with the License. A copy of the License
+ * is located at http://aws.amazon.com/apache2.0 or in the "license" file accompanying this file. This file is
+ * distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under the License. According to cos feature,
+ * we modify some class，comment, field name, etc.
  */
-
 
 package com.qcloud.cos.transfer;
 
@@ -35,12 +26,15 @@ import java.util.List;
 import java.util.Stack;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.Executors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.qcloud.cos.COS;
 import com.qcloud.cos.COSClient;
@@ -73,36 +67,29 @@ import com.qcloud.cos.model.ObjectListing;
 import com.qcloud.cos.model.ObjectMetadata;
 import com.qcloud.cos.model.PutObjectRequest;
 import com.qcloud.cos.model.ciModel.auditing.ImageAuditingRequest;
-import com.qcloud.cos.model.ciModel.auditing.ImageAuditingResponse;
-import com.qcloud.cos.model.ciModel.image.ImageLabelRequest;
 import com.qcloud.cos.transfer.Transfer.TransferState;
+import com.qcloud.cos.utils.IOUtils;
 import com.qcloud.cos.utils.VersionInfoUtils;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * High level utility for managing transfers to Qcloud COS.
  * <p>
- * <code>TransferManager</code> provides a simple API for uploading content to Qcloud COS, and makes
- * extensive use of Qcloud COS multipart uploads to achieve enhanced throughput, performance and
- * reliability.
+ * <code>TransferManager</code> provides a simple API for uploading content to Qcloud COS, and makes extensive use of
+ * Qcloud COS multipart uploads to achieve enhanced throughput, performance and reliability.
  * <p>
- * When possible, <code>TransferManager</code> attempts to use multiple threads to upload multiple
- * parts of a single upload at once. When dealing with large content sizes and high bandwidth, this
- * can have a significant increase on throughput.
+ * When possible, <code>TransferManager</code> attempts to use multiple threads to upload multiple parts of a single
+ * upload at once. When dealing with large content sizes and high bandwidth, this can have a significant increase on
+ * throughput.
  * <p>
- * <code>TransferManager</code> is responsible for managing resources such as connections and
- * threads; share a single instance of <code>TransferManager</code> whenever possible.
- * <code>TransferManager</code>, like all the client classes in the COS SDK for Java, is thread
- * safe. Call <code> TransferManager.shutdownNow()</code> to release the resources once the transfer
- * is complete.
+ * <code>TransferManager</code> is responsible for managing resources such as connections and threads; share a single
+ * instance of <code>TransferManager</code> whenever possible. <code>TransferManager</code>, like all the client classes
+ * in the COS SDK for Java, is thread safe. Call <code> TransferManager.shutdownNow()</code> to release the resources
+ * once the transfer is complete.
  * <p>
  * Using <code>TransferManager</code> to upload options to Qcloud COS is easy:
  *
  * <pre class="brush: java">
- * DefaultCOSCredentialsProviderChain credentialProviderChain =
- *         new DefaultCOSCredentialsProviderChain();
+ * DefaultCOSCredentialsProviderChain credentialProviderChain = new DefaultCOSCredentialsProviderChain();
  * TransferManager tx = new TransferManager(credentialProviderChain.getCredentials());
  * Upload myUpload = tx.upload(myBucket, myFile.getName(), myFile);
  *
@@ -110,7 +97,8 @@ import org.slf4j.LoggerFactory;
  * if (myUpload.isDone() == false) {
  *     System.out.println(&quot;Transfer: &quot; + myUpload.getDescription());
  *     System.out.println(&quot;  - State: &quot; + myUpload.getState());
- *     System.out.println(&quot;  - Progress: &quot; + myUpload.getProgress().getBytesTransferred());
+ *     System.out.println(&quot;  - Progress: &quot; + myUpload.getProgress()
+ *             .getBytesTransferred());
  * }
  *
  * // Transfers also allow you to set a &lt;code&gt;ProgressListener&lt;/code&gt; to receive
@@ -126,9 +114,8 @@ import org.slf4j.LoggerFactory;
  * tx.shutdownNow();
  * </pre>
  * <p>
- * Transfers can be paused and resumed at a later time. It can also survive JVM crash, provided the
- * information that is required to resume the transfer is given as input to the resume operation.
- * For more information on pause and resume,
+ * Transfers can be paused and resumed at a later time. It can also survive JVM crash, provided the information that is
+ * required to resume the transfer is given as input to the resume operation. For more information on pause and resume,
  *
  * @see Upload#pause()
  * @see Download#pause()
@@ -146,16 +133,14 @@ public class TransferManager {
     private final ExecutorService threadPool;
 
     /** Thread used for periodicially checking transfers and updating thier state. */
-    private final ScheduledExecutorService timedThreadPool =
-            new ScheduledThreadPoolExecutor(1, daemonThreadFactory);
+    private final ScheduledExecutorService timedThreadPool = new ScheduledThreadPoolExecutor(1, daemonThreadFactory);
 
     private static final Logger log = LoggerFactory.getLogger(TransferManager.class);
 
     private final boolean shutDownThreadPools;
 
     /**
-     * Constructs a new <code>TransferManager</code>, specifying the client to use when making
-     * requests to Qcloud COS.
+     * Constructs a new <code>TransferManager</code>, specifying the client to use when making requests to Qcloud COS.
      * <p>
      * <code>TransferManager</code> and client objects may pool connections and threads. Reuse
      * <code>TransferManager</code> and client objects and share them throughout applications.
@@ -170,30 +155,27 @@ public class TransferManager {
     }
 
     /**
-     * Constructs a new <code>TransferManager</code> specifying the client and thread pool to use
-     * when making requests to Qcloud COS.
+     * Constructs a new <code>TransferManager</code> specifying the client and thread pool to use when making requests
+     * to Qcloud COS.
      * <p>
      * <code>TransferManager</code> and client objects may pool connections and threads. Reuse
      * <code>TransferManager</code> and client objects and share them throughout applications.
      * <p>
      * TransferManager and all COS client objects are thread safe.
      * <p>
-     * By default, the thread pool will shutdown when the transfer manager instance is garbage
-     * collected.
+     * By default, the thread pool will shutdown when the transfer manager instance is garbage collected.
      *
      * @param cos The client to use when making requests to Qcloud COS.
      * @param threadPool The thread pool in which to execute requests.
-     *
-     * @see TransferManager#TransferManager(COS cos, ExecutorService threadPool, boolean
-     *      shutDownThreadPools)
+     * @see TransferManager#TransferManager(COS cos, ExecutorService threadPool, boolean shutDownThreadPools)
      */
     public TransferManager(COS cos, ExecutorService threadPool) {
         this(cos, threadPool, true);
     }
 
     /**
-     * Constructs a new <code>TransferManager</code> specifying the client and thread pool to use
-     * when making requests to Qcloud COS.
+     * Constructs a new <code>TransferManager</code> specifying the client and thread pool to use when making requests
+     * to Qcloud COS.
      * <p>
      * <code>TransferManager</code> and client objects may pool connections and threads. Reuse
      * <code>TransferManager</code> and client objects and share them throughout applications.
@@ -202,35 +184,31 @@ public class TransferManager {
      *
      * @param cos The client to use when making requests to Qcloud COS.
      * @param threadPool The thread pool in which to execute requests.
-     * @param shutDownThreadPools If set to true, the thread pool will be shutdown when transfer
-     *        manager instance is garbage collected.
+     * @param shutDownThreadPools If set to true, the thread pool will be shutdown when transfer manager instance is
+     *            garbage collected.
      */
     public TransferManager(COS cos, ExecutorService threadPool, boolean shutDownThreadPools) {
         this.cos = cos;
         this.threadPool = threadPool;
         this.configuration = new TransferManagerConfiguration();
         this.shutDownThreadPools = shutDownThreadPools;
-        if (cos.getClientConfig().getRegion() == null) {
-            throw new IllegalArgumentException(
-                    "region in clientConfig of cosClient must be specified!");
+        if (cos.getClientConfig()
+                .getRegion() == null) {
+            throw new IllegalArgumentException("region in clientConfig of cosClient must be specified!");
         }
     }
 
-
     /**
-     * Sets the configuration which specifies how this <code>TransferManager</code> processes
-     * requests.
+     * Sets the configuration which specifies how this <code>TransferManager</code> processes requests.
      *
-     * @param configuration The new configuration specifying how this <code>TransferManager</code>
-     *        processes requests.
+     * @param configuration The new configuration specifying how this <code>TransferManager</code> processes requests.
      */
     public void setConfiguration(TransferManagerConfiguration configuration) {
         this.configuration = configuration;
     }
 
     /**
-     * Returns the configuration which specifies how this <code>TransferManager</code> processes
-     * requests.
+     * Returns the configuration which specifies how this <code>TransferManager</code> processes requests.
      *
      * @return The configuration settings for this <code>TransferManager</code>.
      */
@@ -249,39 +227,35 @@ public class TransferManager {
 
     /**
      * <p>
-     * Schedules a new transfer to upload data to Qcloud COS. This method is non-blocking and
-     * returns immediately (i.e. before the upload has finished).
+     * Schedules a new transfer to upload data to Qcloud COS. This method is non-blocking and returns immediately (i.e.
+     * before the upload has finished).
      * </p>
      * <p>
-     * When uploading options from a stream, callers <b>must</b> supply the size of options in the
-     * stream through the content length field in the <code>ObjectMetadata</code> parameter. If no
-     * content length is specified for the input stream, then TransferManager will attempt to buffer
-     * all the stream contents in memory and upload the options as a traditional, single part
-     * upload. Because the entire stream contents must be buffered in memory, this can be very
-     * expensive, and should be avoided whenever possible.
+     * When uploading options from a stream, callers <b>must</b> supply the size of options in the stream through the
+     * content length field in the <code>ObjectMetadata</code> parameter. If no content length is specified for the
+     * input stream, then TransferManager will attempt to buffer all the stream contents in memory and upload the
+     * options as a traditional, single part upload. Because the entire stream contents must be buffered in memory, this
+     * can be very expensive, and should be avoided whenever possible.
      * </p>
      * <p>
-     * Use the returned <code>Upload</code> object to query the progress of the transfer, add
-     * listeners for progress events, and wait for the upload to complete.
+     * Use the returned <code>Upload</code> object to query the progress of the transfer, add listeners for progress
+     * events, and wait for the upload to complete.
      * </p>
      * <p>
-     * If resources are available, the upload will begin immediately. Otherwise, the upload is
-     * scheduled and started as soon as resources become available.
+     * If resources are available, the upload will begin immediately. Otherwise, the upload is scheduled and started as
+     * soon as resources become available.
      * </p>
      *
      * @param bucketName The name of the bucket to upload the new object to.
      * @param key The key in the specified bucket by which to store the new object.
      * @param input The input stream containing the options to upload to Qcloud COS.
-     * @param objectMetadata Additional information about the object being uploaded, including the
-     *        size of the options, content type, additional custom user metadata, etc.
-     *
-     * @return A new <code>Upload</code> object to use to check the state of the upload, listen for
-     *         progress notifications, and otherwise manage the upload.
-     *
-     * @throws CosClientException If any errors are encountered in the client while making the
-     *         request or handling the response.
-     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the
-     *         request.
+     * @param objectMetadata Additional information about the object being uploaded, including the size of the options,
+     *            content type, additional custom user metadata, etc.
+     * @return A new <code>Upload</code> object to use to check the state of the upload, listen for progress
+     *         notifications, and otherwise manage the upload.
+     * @throws CosClientException If any errors are encountered in the client while making the request or handling the
+     *             response.
+     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the request.
      */
     public Upload upload(final String bucketName, final String key, final InputStream input,
             ObjectMetadata objectMetadata) throws CosServiceException, CosClientException {
@@ -289,26 +263,23 @@ public class TransferManager {
     }
 
     /**
-     * Schedules a new transfer to upload data to Qcloud COS. This method is non-blocking and
-     * returns immediately (i.e. before the upload has finished).
+     * Schedules a new transfer to upload data to Qcloud COS. This method is non-blocking and returns immediately (i.e.
+     * before the upload has finished).
      * <p>
-     * The returned Upload object allows you to query the progress of the transfer, add listeners
-     * for progress events, and wait for the upload to complete.
+     * The returned Upload object allows you to query the progress of the transfer, add listeners for progress events,
+     * and wait for the upload to complete.
      * </p>
-     * If resources are available, the upload will begin immediately, otherwise it will be scheduled
-     * and started as soon as resources become available.
+     * If resources are available, the upload will begin immediately, otherwise it will be scheduled and started as soon
+     * as resources become available.
      *
      * @param bucketName The name of the bucket to upload the new object to.
      * @param key The key in the specified bucket by which to store the new object.
      * @param file The file to upload.
-     *
-     * @return A new Upload object which can be used to check state of the upload, listen for
-     *         progress notifications, and otherwise manage the upload.
-     *
-     * @throws CosClientException If any errors are encountered in the client while making the
-     *         request or handling the response.
-     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the
-     *         request.
+     * @return A new Upload object which can be used to check state of the upload, listen for progress notifications,
+     *         and otherwise manage the upload.
+     * @throws CosClientException If any errors are encountered in the client while making the request or handling the
+     *             response.
+     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the request.
      */
     public Upload upload(final String bucketName, final String key, final File file)
             throws CosServiceException, CosClientException {
@@ -317,99 +288,86 @@ public class TransferManager {
 
     /**
      * <p>
-     * Schedules a new transfer to upload data to Qcloud COS. This method is non-blocking and
-     * returns immediately (i.e. before the upload has finished).
+     * Schedules a new transfer to upload data to Qcloud COS. This method is non-blocking and returns immediately (i.e.
+     * before the upload has finished).
      * </p>
      * <p>
-     * Use the returned <code>Upload</code> object to query the progress of the transfer, add
-     * listeners for progress events, and wait for the upload to complete.
+     * Use the returned <code>Upload</code> object to query the progress of the transfer, add listeners for progress
+     * events, and wait for the upload to complete.
      * </p>
      * <p>
-     * If resources are available, the upload will begin immediately. Otherwise, the upload is
-     * scheduled and started as soon as resources become available.
+     * If resources are available, the upload will begin immediately. Otherwise, the upload is scheduled and started as
+     * soon as resources become available.
      * </p>
      *
      * @param putObjectRequest The request containing all the parameters for the upload.
-     *
-     * @return A new <code>Upload</code> object to use to check the state of the upload, listen for
-     *         progress notifications, and otherwise manage the upload.
-     *
-     * @throws CosClientException If any errors are encountered in the client while making the
-     *         request or handling the response.
-     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the
-     *         request.
+     * @return A new <code>Upload</code> object to use to check the state of the upload, listen for progress
+     *         notifications, and otherwise manage the upload.
+     * @throws CosClientException If any errors are encountered in the client while making the request or handling the
+     *             response.
+     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the request.
      */
-    public Upload upload(final PutObjectRequest putObjectRequest)
-            throws CosServiceException, CosClientException {
+    public Upload upload(final PutObjectRequest putObjectRequest) throws CosServiceException, CosClientException {
         return doUpload(putObjectRequest, null, null, null);
     }
 
     /**
      * <p>
-     * Schedules a new transfer to upload data to Qcloud COS. This method is non-blocking and
-     * returns immediately (i.e. before the upload has finished).
+     * Schedules a new transfer to upload data to Qcloud COS. This method is non-blocking and returns immediately (i.e.
+     * before the upload has finished).
      * </p>
      * <p>
-     * Use the returned <code>Upload</code> object to query the progress of the transfer, add
-     * listeners for progress events, and wait for the upload to complete.
+     * Use the returned <code>Upload</code> object to query the progress of the transfer, add listeners for progress
+     * events, and wait for the upload to complete.
      * </p>
      * <p>
-     * If resources are available, the upload will begin immediately. Otherwise, the upload is
-     * scheduled and started as soon as resources become available.
+     * If resources are available, the upload will begin immediately. Otherwise, the upload is scheduled and started as
+     * soon as resources become available.
      * </p>
      *
      * @param putObjectRequest The request containing all the parameters for the upload.
      * @param progressListener An optional callback listener to receive the progress of the upload.
-     *
-     * @return A new <code>Upload</code> object to use to check the state of the upload, listen for
-     *         progress notifications, and otherwise manage the upload.
-     *
-     * @throws CosClientException If any errors are encountered in the client while making the
-     *         request or handling the response.
-     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the
-     *         request.
+     * @return A new <code>Upload</code> object to use to check the state of the upload, listen for progress
+     *         notifications, and otherwise manage the upload.
+     * @throws CosClientException If any errors are encountered in the client while making the request or handling the
+     *             response.
+     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the request.
      */
-    public Upload upload(final PutObjectRequest putObjectRequest,
-            final COSProgressListener progressListener)
-                    throws CosServiceException, CosClientException {
+    public Upload upload(final PutObjectRequest putObjectRequest, final COSProgressListener progressListener)
+            throws CosServiceException, CosClientException {
         return doUpload(putObjectRequest, null, progressListener, null);
     }
 
     /**
      * <p>
-     * Schedules a new transfer to upload data to Qcloud COS. This method is non-blocking and
-     * returns immediately (i.e. before the upload has finished).
+     * Schedules a new transfer to upload data to Qcloud COS. This method is non-blocking and returns immediately (i.e.
+     * before the upload has finished).
      * </p>
      * <p>
-     * Use the returned <code>Upload</code> object to query the progress of the transfer, add
-     * listeners for progress events, and wait for the upload to complete.
+     * Use the returned <code>Upload</code> object to query the progress of the transfer, add listeners for progress
+     * events, and wait for the upload to complete.
      * </p>
      * <p>
-     * If resources are available, the upload will begin immediately. Otherwise, the upload is
-     * scheduled and started as soon as resources become available.
+     * If resources are available, the upload will begin immediately. Otherwise, the upload is scheduled and started as
+     * soon as resources become available.
      * </p>
      *
      * @param putObjectRequest The request containing all the parameters for the upload.
      * @param stateListener The transfer state change listener to monitor the upload.
      * @param progressListener An optional callback listener to receive the progress of the upload.
-     *
-     * @return A new <code>Upload</code> object to use to check the state of the upload, listen for
-     *         progress notifications, and otherwise manage the upload.
-     *
-     * @throws CosClientException If any errors are encountered in the client while making the
-     *         request or handling the response.
-     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the
-     *         request.
+     * @return A new <code>Upload</code> object to use to check the state of the upload, listen for progress
+     *         notifications, and otherwise manage the upload.
+     * @throws CosClientException If any errors are encountered in the client while making the request or handling the
+     *             response.
+     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the request.
      */
-    private Upload doUpload(final PutObjectRequest putObjectRequest,
-            final TransferStateChangeListener stateListener,
+    private Upload doUpload(final PutObjectRequest putObjectRequest, final TransferStateChangeListener stateListener,
             final COSProgressListener progressListener, final PersistableUpload persistableUpload)
-                    throws CosServiceException, CosClientException {
+            throws CosServiceException, CosClientException {
 
         appendSingleObjectUserAgent(putObjectRequest);
 
-        String multipartUploadId =
-                persistableUpload != null ? persistableUpload.getMultipartUploadId() : null;
+        String multipartUploadId = persistableUpload != null ? persistableUpload.getMultipartUploadId() : null;
 
         if (putObjectRequest.getMetadata() == null)
             putObjectRequest.setMetadata(new ObjectMetadata());
@@ -423,130 +381,112 @@ public class TransferManager {
 
         } else {
             if (multipartUploadId != null) {
-                throw new IllegalArgumentException(
-                        "Unable to resume the upload. No file specified.");
+                throw new IllegalArgumentException("Unable to resume the upload. No file specified.");
             }
         }
 
-        String description = "Uploading to " + putObjectRequest.getBucketName() + "/"
-                + putObjectRequest.getKey();
+        String description = "Uploading to " + putObjectRequest.getBucketName() + "/" + putObjectRequest.getKey();
         TransferProgress transferProgress = new TransferProgress();
-        transferProgress
-                .setTotalBytesToTransfer(TransferManagerUtils.getContentLength(putObjectRequest));
+        transferProgress.setTotalBytesToTransfer(TransferManagerUtils.getContentLength(putObjectRequest));
 
-        COSProgressListenerChain listenerChain =
-                new COSProgressListenerChain(new TransferProgressUpdatingListener(transferProgress),
-                        putObjectRequest.getGeneralProgressListener(), progressListener);
+        COSProgressListenerChain listenerChain = new COSProgressListenerChain(
+                new TransferProgressUpdatingListener(transferProgress), putObjectRequest.getGeneralProgressListener(),
+                progressListener);
 
         putObjectRequest.setGeneralProgressListener(listenerChain);
 
-        UploadImpl upload =
-                new UploadImpl(description, transferProgress, listenerChain, stateListener);
+        UploadImpl upload = new UploadImpl(description, transferProgress, listenerChain, stateListener);
         /**
-         * Since we use the same thread pool for uploading individual parts and complete multi part
-         * upload, there is a possibility that the tasks for complete multi-part upload will be
-         * added to end of queue in case of multiple parallel uploads submitted. This may result in
-         * a delay for processing the complete multi part upload request.
+         * Since we use the same thread pool for uploading individual parts and complete multi part upload, there is a
+         * possibility that the tasks for complete multi-part upload will be added to end of queue in case of multiple
+         * parallel uploads submitted. This may result in a delay for processing the complete multi part upload request.
          */
-        UploadCallable uploadCallable = new UploadCallable(this, threadPool, upload,
-                putObjectRequest, listenerChain, multipartUploadId, transferProgress);
-        UploadMonitor watcher = UploadMonitor.create(this, upload, threadPool, uploadCallable,
-                putObjectRequest, listenerChain);
+        UploadCallable uploadCallable = new UploadCallable(this, threadPool, upload, putObjectRequest, listenerChain,
+                multipartUploadId, transferProgress);
+        UploadMonitor watcher = UploadMonitor.create(this, upload, threadPool, uploadCallable, putObjectRequest,
+                listenerChain);
         upload.setMonitor(watcher);
 
         return upload;
     }
 
     /**
-     * Schedules a new transfer to download data from Qcloud COS and save it to the specified file.
-     * This method is non-blocking and returns immediately (i.e. before the data has been fully
-     * downloaded).
+     * Schedules a new transfer to download data from Qcloud COS and save it to the specified file. This method is
+     * non-blocking and returns immediately (i.e. before the data has been fully downloaded).
      * <p>
-     * Use the returned Download object to query the progress of the transfer, add listeners for
-     * progress events, and wait for the download to complete.
+     * Use the returned Download object to query the progress of the transfer, add listeners for progress events, and
+     * wait for the download to complete.
      * </p>
      *
      * @param bucket The name of the bucket containing the object to download.
      * @param key The key under which the object to download is stored.
      * @param file The file to download the object's data to.
-     *
-     * @return A new <code>Download</code> object to use to check the state of the download, listen
-     *         for progress notifications, and otherwise manage the download.
-     *
-     * @throws CosClientException If any errors are encountered in the client while making the
-     *         request or handling the response.
-     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the
-     *         request.
+     * @return A new <code>Download</code> object to use to check the state of the download, listen for progress
+     *         notifications, and otherwise manage the download.
+     * @throws CosClientException If any errors are encountered in the client while making the request or handling the
+     *             response.
+     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the request.
      */
     public Download download(String bucket, String key, File file) {
         return download(new GetObjectRequest(bucket, key), file);
     }
 
     /**
-     * Schedules a new transfer to download data from Qcloud COS and save it to the specified file.
-     * This method is non-blocking and returns immediately (i.e. before the data has been fully
-     * downloaded).
+     * Schedules a new transfer to download data from Qcloud COS and save it to the specified file. This method is
+     * non-blocking and returns immediately (i.e. before the data has been fully downloaded).
      * <p>
-     * Use the returned Download object to query the progress of the transfer, add listeners for
-     * progress events, and wait for the download to complete.
+     * Use the returned Download object to query the progress of the transfer, add listeners for progress events, and
+     * wait for the download to complete.
      * </p>
      *
      * @param getObjectRequest The request containing all the parameters for the download.
      * @param file The file to download the object data to.
-     *
-     * @return A new <code>Download</code> object to use to check the state of the download, listen
-     *         for progress notifications, and otherwise manage the download.
-     *
-     * @throws CosClientException If any errors are encountered in the client while making the
-     *         request or handling the response.
-     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the
-     *         request.
+     * @return A new <code>Download</code> object to use to check the state of the download, listen for progress
+     *         notifications, and otherwise manage the download.
+     * @throws CosClientException If any errors are encountered in the client while making the request or handling the
+     *             response.
+     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the request.
      */
     public Download download(final GetObjectRequest getObjectRequest, final File file) {
         return doDownload(getObjectRequest, file, null, null, OVERWRITE_MODE);
     }
 
     /**
-     * Schedules a new transfer to download data from Qcloud COS and save it to the specified file.
-     * This method is non-blocking and returns immediately (i.e. before the data has been fully
-     * downloaded).
+     * Schedules a new transfer to download data from Qcloud COS and save it to the specified file. This method is
+     * non-blocking and returns immediately (i.e. before the data has been fully downloaded).
      * <p>
-     * Use the returned Download object to query the progress of the transfer, add listeners for
-     * progress events, and wait for the download to complete.
+     * Use the returned Download object to query the progress of the transfer, add listeners for progress events, and
+     * wait for the download to complete.
      * </p>
      *
      * @param getObjectRequest The request containing all the parameters for the download.
      * @param file The file to download the object data to.
      * @param progressListener An optional callback listener to get the progress of the download.
-     *
-     * @return A new <code>Download</code> object to use to check the state of the download, listen
-     *         for progress notifications, and otherwise manage the download.
-     *
-     * @throws CosClientException If any errors are encountered in the client while making the
-     *         request or handling the response.
-     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the
-     *         request.
+     * @return A new <code>Download</code> object to use to check the state of the download, listen for progress
+     *         notifications, and otherwise manage the download.
+     * @throws CosClientException If any errors are encountered in the client while making the request or handling the
+     *             response.
+     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the request.
      */
     public Download download(final GetObjectRequest getObjectRequest, final File file,
             final COSProgressListener progressListener) {
         return doDownload(getObjectRequest, file, null, progressListener, OVERWRITE_MODE);
     }
 
-    public Download download(final GetObjectRequest getObjectRequest, final File file,
-            boolean resumableDownload) {
-        return download(getObjectRequest, file, null, resumableDownload, null, 20*1024*1024, 8*1024*1024);
+    public Download download(final GetObjectRequest getObjectRequest, final File file, boolean resumableDownload) {
+        return download(getObjectRequest, file, null, resumableDownload, null, 20 * 1024 * 1024, 8 * 1024 * 1024);
     }
 
     public Download download(final GetObjectRequest getObjectRequest, final File file,
             final COSProgressListener progressListener, boolean resumableDownload) {
-        return download(getObjectRequest, file, progressListener, resumableDownload, null, 20*1024*1024, 8*1024*1024);
+        return download(getObjectRequest, file, progressListener, resumableDownload, null, 20 * 1024 * 1024,
+                8 * 1024 * 1024);
     }
 
-    public Download download(final GetObjectRequest getObjectRequest, final File file,
-            boolean resumableDownload, String resumableTaskFile,
-            int multiThreadThreshold, int partSize) {
-        return download(getObjectRequest, file, null, resumableDownload, resumableTaskFile,
-                 multiThreadThreshold, partSize);
+    public Download download(final GetObjectRequest getObjectRequest, final File file, boolean resumableDownload,
+            String resumableTaskFile, int multiThreadThreshold, int partSize) {
+        return download(getObjectRequest, file, null, resumableDownload, resumableTaskFile, multiThreadThreshold,
+                partSize);
     }
 
     public Download download(final GetObjectRequest getObjectRequest, final File file,
@@ -573,7 +513,8 @@ public class TransferManager {
         final ObjectMetadata objectMetadata = cos.getObjectMetadata(getObjectMetadataRequest);
 
         long cosContentLength = objectMetadata.getContentLength();
-        long cosLastModified = objectMetadata.getLastModified().getTime();
+        long cosLastModified = objectMetadata.getLastModified()
+                .getTime();
         String cosEtag = objectMetadata.getETag();
         String cosCrc64 = objectMetadata.getCrc64Ecma();
 
@@ -590,11 +531,10 @@ public class TransferManager {
 
             // attempt to create the parent if it doesn't exist
             File parentDirectory = resumableTaskFile.getParentFile();
-            if ( parentDirectory != null && !parentDirectory.exists() ) {
+            if (parentDirectory != null && !parentDirectory.exists()) {
                 if (!(parentDirectory.mkdirs())) {
                     throw new CosClientException(
-                            "Unable to create directory in the path"
-                                    + parentDirectory.getAbsolutePath());
+                            "Unable to create directory in the path" + parentDirectory.getAbsolutePath());
                 }
             }
 
@@ -605,26 +545,32 @@ public class TransferManager {
             is = new FileInputStream(resumableTaskFile);
 
             downloadRecord = PersistableResumeDownload.deserializeFrom(is);
-            log.info("deserialize download record from " + resumableTaskFile.getAbsolutePath() + "record: " + downloadRecord.serialize());
+            log.info("deserialize download record from " + resumableTaskFile.getAbsolutePath() + "record: "
+                    + downloadRecord.serialize());
         } catch (IOException e) {
             throw new CosClientException("can not create file" + resumableTaskFile.getAbsolutePath() + e);
         } catch (IllegalArgumentException e) {
-            log.warn("resumedownload task file cannot deserialize"+e);
+            log.warn("resumedownload task file cannot deserialize" + e);
         } finally {
             if (is != null) {
                 try {
                     is.close();
                 } catch (IOException e) {
-                    throw new CosClientException("can not close input stream " + resumableTaskFile.getAbsolutePath() + e);
+                    throw new CosClientException(
+                            "can not close input stream " + resumableTaskFile.getAbsolutePath() + e);
                 }
             }
         }
 
-        if (downloadRecord == null || downloadRecord.getLastModified() != cosLastModified ||
-            !downloadRecord.getContentLength().equals(Long.toString(cosContentLength)) ||
-            !downloadRecord.getEtag().equals(cosEtag) || !downloadRecord.getCrc64ecma().equals(cosCrc64)) {
+        if (downloadRecord == null || downloadRecord.getLastModified() != cosLastModified
+                || !downloadRecord.getContentLength()
+                        .equals(Long.toString(cosContentLength))
+                || !downloadRecord.getEtag()
+                        .equals(cosEtag)
+                || !downloadRecord.getCrc64ecma()
+                        .equals(cosCrc64)) {
 
-            HashMap<String, Integer> downloadedBlocks = new HashMap<String, Integer>();
+            HashMap<String,Integer> downloadedBlocks = new HashMap<String,Integer>();
             downloadRecord = new PersistableResumeDownload(cosLastModified, Long.toString(cosContentLength), cosEtag,
                     cosCrc64, downloadedBlocks);
         }
@@ -635,16 +581,17 @@ public class TransferManager {
     }
 
     private Download doResumableDownload(final GetObjectRequest getObjectRequest, final File destFile,
-            final TransferStateChangeListener stateListener,
-            final COSProgressListener cosProgressListener, String resumableTaskFilePath,
-            int multiThreadThreshold, int partSize) {
+            final TransferStateChangeListener stateListener, final COSProgressListener cosProgressListener,
+            String resumableTaskFilePath, int multiThreadThreshold, int partSize) {
 
-        PersistableResumeDownload downloadRecord = getPersistableResumeRecord(getObjectRequest, destFile, resumableTaskFilePath);
+        PersistableResumeDownload downloadRecord = getPersistableResumeRecord(getObjectRequest, destFile,
+                resumableTaskFilePath);
 
         long bytesToDownload = Long.parseLong(downloadRecord.getContentLength());
 
         if (bytesToDownload < multiThreadThreshold) {
-            downloadRecord.getDumpFile().delete();
+            downloadRecord.getDumpFile()
+                    .delete();
             return doDownload(getObjectRequest, destFile, stateListener, cosProgressListener, OVERWRITE_MODE);
         }
 
@@ -656,66 +603,71 @@ public class TransferManager {
         // COS progress listener to capture the persistable transfer when available
         COSProgressListenerChain listenerChain = new COSProgressListenerChain(
                 // The listener for updating transfer progress
-                new TransferProgressUpdatingListener(transferProgress),
-                getObjectRequest.getGeneralProgressListener(), cosProgressListener);
+                new TransferProgressUpdatingListener(transferProgress), getObjectRequest.getGeneralProgressListener(),
+                cosProgressListener);
 
-        getObjectRequest.setGeneralProgressListener(
-                new ProgressListenerChain(new TransferCompletionFilter(), listenerChain));
+        getObjectRequest
+                .setGeneralProgressListener(new ProgressListenerChain(new TransferCompletionFilter(), listenerChain));
 
-        RandomAccessFile destRandomAccessFile;
+        RandomAccessFile destRandomAccessFile = null;
         FileChannel destFileChannel;
-        try{
+        try {
             destRandomAccessFile = new RandomAccessFile(destFile, "rw");
             destRandomAccessFile.setLength(bytesToDownload);
             destFileChannel = destRandomAccessFile.getChannel();
         } catch (Exception e) {
-            throw new CosClientException("resumable download got exception:" + e.getCause().getMessage() + e.getMessage());
+            if (destRandomAccessFile != null) {
+                IOUtils.closeQuietly(destRandomAccessFile, log);
+            }
+            throw new CosClientException("resumable download got exception:" + e.getCause()
+                    .getMessage() + e.getMessage());
         }
 
         transferProgress.setTotalBytesToTransfer(bytesToDownload);
 
-        DownloadImpl download = new DownloadImpl(description, transferProgress, listenerChain,
-                null, stateListener, getObjectRequest, destFile);
+        DownloadImpl download = new DownloadImpl(description, transferProgress, listenerChain, null, stateListener,
+                getObjectRequest, destFile);
 
-        ExecutorService partDownloadThreadPool = Executors.newFixedThreadPool(getObjectRequest.getDownloadPartsThreads());
+        ExecutorService partDownloadThreadPool = Executors
+                .newFixedThreadPool(getObjectRequest.getDownloadPartsThreads());
 
-        ResumableDownloadSubmitter submitter = new ResumableDownloadSubmitter(cos, partDownloadThreadPool, getObjectRequest,
-                download, destFile, destRandomAccessFile, destFileChannel, downloadRecord, partSize, multiThreadThreshold, transferProgress, listenerChain);
+        ResumableDownloadSubmitter submitter = new ResumableDownloadSubmitter(cos, partDownloadThreadPool,
+                getObjectRequest, download, destFile, destRandomAccessFile, destFileChannel, downloadRecord, partSize,
+                multiThreadThreshold, transferProgress, listenerChain);
 
-        ResumableDownloadMonitor monitor = ResumableDownloadMonitor.create(listenerChain, submitter, download, threadPool,
-                downloadRecord, destFile, destFileChannel);
+        ResumableDownloadMonitor monitor = ResumableDownloadMonitor.create(listenerChain, submitter, download,
+                threadPool, downloadRecord, destFile, destFileChannel);
 
         download.setMonitor(monitor);
         return download;
     }
 
     /**
-     * Same as public interface, but adds a state listener so that callers can be notified of state
-     * changes to the download.
+     * Same as public interface, but adds a state listener so that callers can be notified of state changes to the
+     * download.
      *
      * @see TransferManager#download(GetObjectRequest, File)
      */
     private Download doDownload(final GetObjectRequest getObjectRequest, final File file,
-            final TransferStateChangeListener stateListener,
-            final COSProgressListener cosProgressListener, final boolean resumeExistingDownload) {
+            final TransferStateChangeListener stateListener, final COSProgressListener cosProgressListener,
+            final boolean resumeExistingDownload) {
         appendSingleObjectUserAgent(getObjectRequest);
-        String description = "Downloading from " + getObjectRequest.getBucketName() + "/"
-                + getObjectRequest.getKey();
+        String description = "Downloading from " + getObjectRequest.getBucketName() + "/" + getObjectRequest.getKey();
 
         TransferProgress transferProgress = new TransferProgress();
         // COS progress listener to capture the persistable transfer when available
         COSProgressListenerChain listenerChain = new COSProgressListenerChain(
                 // The listener for updating transfer progress
-                new TransferProgressUpdatingListener(transferProgress),
-                getObjectRequest.getGeneralProgressListener(), cosProgressListener); // Listeners
-                                                                                     // included in
-                                                                                     // the original
-                                                                                     // request
+                new TransferProgressUpdatingListener(transferProgress), getObjectRequest.getGeneralProgressListener(),
+                cosProgressListener); // Listeners
+                                      // included in
+                                      // the original
+                                      // request
         // The listener chain used by the low-level GetObject request.
         // This listener chain ignores any COMPLETE event, so that we could
         // delay firing the signal until the high-level download fully finishes.
-        getObjectRequest.setGeneralProgressListener(
-                new ProgressListenerChain(new TransferCompletionFilter(), listenerChain));
+        getObjectRequest
+                .setGeneralProgressListener(new ProgressListenerChain(new TransferCompletionFilter(), listenerChain));
 
         long startingByte = 0;
         long lastByte;
@@ -737,8 +689,8 @@ public class TransferManager {
         }
         final long origStartingByte = startingByte;
         // We still pass the unfiltered listener chain into DownloadImpl
-        final DownloadImpl download = new DownloadImpl(description, transferProgress, listenerChain,
-                null, stateListener, getObjectRequest, file);
+        final DownloadImpl download = new DownloadImpl(description, transferProgress, listenerChain, null,
+                stateListener, getObjectRequest, file);
 
         long totalBytesToDownload = lastByte - startingByte + 1;
         transferProgress.setTotalBytesToTransfer(totalBytesToDownload);
@@ -757,9 +709,8 @@ public class TransferManager {
                     totalBytesToDownload = lastByte - startingByte + 1;
                     if (log.isDebugEnabled()) {
                         log.debug("Resume download: totalBytesToDownload=" + totalBytesToDownload
-                                + ", origStartingByte=" + origStartingByte + ", startingByte="
-                                + startingByte + ", lastByte=" + lastByte + ", numberOfBytesRead="
-                                + fileLength + ", file: " + file);
+                                + ", origStartingByte=" + origStartingByte + ", startingByte=" + startingByte
+                                + ", lastByte=" + lastByte + ", numberOfBytesRead=" + fileLength + ", file: " + file);
                     }
                 }
             } finally {
@@ -768,30 +719,27 @@ public class TransferManager {
         }
 
         if (totalBytesToDownload < 0) {
-            throw new IllegalArgumentException(
-                    "Unable to determine the range for download operation.");
+            throw new IllegalArgumentException("Unable to determine the range for download operation.");
         }
 
         final CountDownLatch latch = new CountDownLatch(1);
-        Future<?> future = threadPool.submit(new DownloadCallable(cos, latch, getObjectRequest,
-                resumeExistingDownload, download, file, origStartingByte, fileLength));
+        Future<?> future = threadPool.submit(new DownloadCallable(cos, latch, getObjectRequest, resumeExistingDownload,
+                download, file, origStartingByte, fileLength));
         download.setMonitor(new DownloadMonitor(download, future));
         latch.countDown();
         return download;
     }
 
     /**
-     * Downloads all objects in the virtual directory designated by the keyPrefix given to the
-     * destination directory given. All virtual subdirectories will be downloaded recursively.
+     * Downloads all objects in the virtual directory designated by the keyPrefix given to the destination directory
+     * given. All virtual subdirectories will be downloaded recursively.
      *
      * @param bucketName The bucket containing the virtual directory
-     * @param keyPrefix The key prefix for the virtual directory, or null for the entire bucket. All
-     *        subdirectories will be downloaded recursively.
-     * @param destinationDirectory The directory to place downloaded files. Subdirectories will be
-     *        created as necessary.
+     * @param keyPrefix The key prefix for the virtual directory, or null for the entire bucket. All subdirectories will
+     *            be downloaded recursively.
+     * @param destinationDirectory The directory to place downloaded files. Subdirectories will be created as necessary.
      */
-    public MultipleFileDownload downloadDirectory(String bucketName, String keyPrefix,
-            File destinationDirectory) {
+    public MultipleFileDownload downloadDirectory(String bucketName, String keyPrefix, File destinationDirectory) {
         if (keyPrefix == null)
             keyPrefix = "";
         List<COSObjectSummary> objectSummaries = new LinkedList<COSObjectSummary>();
@@ -806,9 +754,9 @@ public class TransferManager {
 
             do {
                 if (listObjectsResponse == null) {
-                    ListObjectsRequest listObjectsRequest =
-                            new ListObjectsRequest().withBucketName(bucketName)
-                                    .withDelimiter(DEFAULT_DELIMITER).withPrefix(prefix);
+                    ListObjectsRequest listObjectsRequest = new ListObjectsRequest().withBucketName(bucketName)
+                            .withDelimiter(DEFAULT_DELIMITER)
+                            .withPrefix(prefix);
                     listObjectsResponse = cos.listObjects(listObjectsRequest);
                 } else {
                     listObjectsResponse = cos.listNextBatchOfObjects(listObjectsResponse);
@@ -818,13 +766,15 @@ public class TransferManager {
                     // Skip any files that are also virtual directories, since
                     // we can't save both a directory and a file of the same
                     // name.
-                    if (!s.getKey().equals(prefix) && !listObjectsResponse.getCommonPrefixes()
-                            .contains(s.getKey() + DEFAULT_DELIMITER)) {
+                    if (!s.getKey()
+                            .equals(prefix)
+                            && !listObjectsResponse.getCommonPrefixes()
+                                    .contains(s.getKey() + DEFAULT_DELIMITER)) {
                         objectSummaries.add(s);
                         totalSize += s.getSize();
                     } else {
-                        log.debug("Skipping download for object " + s.getKey()
-                                + " since it is also a virtual directory");
+                        log.debug(
+                                "Skipping download for object " + s.getKey() + " since it is also a virtual directory");
                     }
                 }
 
@@ -841,29 +791,26 @@ public class TransferManager {
          * Bind additional progress listeners to this MultipleFileTransferProgressUpdatingListener
          * to receive ByteTransferred events from each single-file download implementation.
          */
-        ProgressListener listener = new MultipleFileTransferProgressUpdatingListener(
-                transferProgress, additionalListeners);
+        ProgressListener listener = new MultipleFileTransferProgressUpdatingListener(transferProgress,
+                additionalListeners);
 
         List<DownloadImpl> downloads = new ArrayList<DownloadImpl>();
 
         String description = "Downloading from " + bucketName + "/" + keyPrefix;
-        final MultipleFileDownloadImpl multipleFileDownload =
-                new MultipleFileDownloadImpl(description, transferProgress, additionalListeners,
-                        keyPrefix, bucketName, downloads);
-        multipleFileDownload
-                .setMonitor(new MultipleFileTransferMonitor(multipleFileDownload, downloads));
+        final MultipleFileDownloadImpl multipleFileDownload = new MultipleFileDownloadImpl(description,
+                transferProgress, additionalListeners, keyPrefix, bucketName, downloads);
+        multipleFileDownload.setMonitor(new MultipleFileTransferMonitor(multipleFileDownload, downloads));
 
         final CountDownLatch latch = new CountDownLatch(1);
-        MultipleFileTransferStateChangeListener transferListener =
-                new MultipleFileTransferStateChangeListener(latch, multipleFileDownload);
+        MultipleFileTransferStateChangeListener transferListener = new MultipleFileTransferStateChangeListener(latch,
+                multipleFileDownload);
 
         for (COSObjectSummary summary : objectSummaries) {
             // TODO: non-standard delimiters
             File f = new File(destinationDirectory, summary.getKey());
             File parentFile = f.getParentFile();
             if (parentFile == null || !parentFile.exists() && !parentFile.mkdirs()) {
-                throw new RuntimeException(
-                        "Couldn't create parent directories for " + f.getAbsolutePath());
+                throw new RuntimeException("Couldn't create parent directories for " + f.getAbsolutePath());
             }
 
             // All the single-file downloads share the same
@@ -871,7 +818,7 @@ public class TransferManager {
             // MultipleFileTransferStateChangeListener
             downloads.add((DownloadImpl) doDownload(
                     new GetObjectRequest(summary.getBucketName(), summary.getKey())
-                            .<GetObjectRequest>withGeneralProgressListener(listener),
+                            .<GetObjectRequest> withGeneralProgressListener(listener),
                     f, transferListener, null, false));
         }
 
@@ -887,48 +834,42 @@ public class TransferManager {
     }
 
     /**
-     * Uploads all files in the directory given to the bucket named, optionally recursing for all
-     * subdirectories.
+     * Uploads all files in the directory given to the bucket named, optionally recursing for all subdirectories.
      * <p>
-     * COS will overwrite any existing objects that happen to have the same key, just as when
-     * uploading individual files, so use with caution.
+     * COS will overwrite any existing objects that happen to have the same key, just as when uploading individual
+     * files, so use with caution.
      * </p>
      *
      * @param bucketName The name of the bucket to upload objects to.
-     * @param virtualDirectoryKeyPrefix The key prefix of the virtual directory to upload to. Use
-     *        the null or empty string to upload files to the root of the bucket.
+     * @param virtualDirectoryKeyPrefix The key prefix of the virtual directory to upload to. Use the null or empty
+     *            string to upload files to the root of the bucket.
      * @param directory The directory to upload.
-     * @param includeSubdirectories Whether to include subdirectories in the upload. If true, files
-     *        found in subdirectories will be included with an appropriate concatenation to the key
-     *        prefix.
+     * @param includeSubdirectories Whether to include subdirectories in the upload. If true, files found in
+     *            subdirectories will be included with an appropriate concatenation to the key prefix.
      */
-    public MultipleFileUpload uploadDirectory(String bucketName, String virtualDirectoryKeyPrefix,
-            File directory, boolean includeSubdirectories) {
-        return uploadDirectory(bucketName, virtualDirectoryKeyPrefix, directory,
-                includeSubdirectories, null);
+    public MultipleFileUpload uploadDirectory(String bucketName, String virtualDirectoryKeyPrefix, File directory,
+            boolean includeSubdirectories) {
+        return uploadDirectory(bucketName, virtualDirectoryKeyPrefix, directory, includeSubdirectories, null);
     }
 
     /**
-     * Uploads all files in the directory given to the bucket named, optionally recursing for all
-     * subdirectories.
+     * Uploads all files in the directory given to the bucket named, optionally recursing for all subdirectories.
      * <p>
-     * COS will overwrite any existing objects that happen to have the same key, just as when
-     * uploading individual files, so use with caution.
+     * COS will overwrite any existing objects that happen to have the same key, just as when uploading individual
+     * files, so use with caution.
      * </p>
      *
      * @param bucketName The name of the bucket to upload objects to.
-     * @param virtualDirectoryKeyPrefix The key prefix of the virtual directory to upload to. Use
-     *        the null or empty string to upload files to the root of the bucket.
+     * @param virtualDirectoryKeyPrefix The key prefix of the virtual directory to upload to. Use the null or empty
+     *            string to upload files to the root of the bucket.
      * @param directory The directory to upload.
-     * @param includeSubdirectories Whether to include subdirectories in the upload. If true, files
-     *        found in subdirectories will be included with an appropriate concatenation to the key
-     *        prefix.
-     * @param metadataProvider A callback of type <code>ObjectMetadataProvider</code> which is used
-     *        to provide metadata for each file being uploaded.
+     * @param includeSubdirectories Whether to include subdirectories in the upload. If true, files found in
+     *            subdirectories will be included with an appropriate concatenation to the key prefix.
+     * @param metadataProvider A callback of type <code>ObjectMetadataProvider</code> which is used to provide metadata
+     *            for each file being uploaded.
      */
-    public MultipleFileUpload uploadDirectory(String bucketName, String virtualDirectoryKeyPrefix,
-            File directory, boolean includeSubdirectories,
-            ObjectMetadataProvider metadataProvider) {
+    public MultipleFileUpload uploadDirectory(String bucketName, String virtualDirectoryKeyPrefix, File directory,
+            boolean includeSubdirectories, ObjectMetadataProvider metadataProvider) {
         if (directory == null || !directory.exists() || !directory.isDirectory()) {
             throw new IllegalArgumentException("Must provide a directory to upload");
         }
@@ -936,29 +877,27 @@ public class TransferManager {
         List<File> files = new LinkedList<File>();
         listFiles(directory, files, includeSubdirectories);
 
-        return uploadFileList(bucketName, virtualDirectoryKeyPrefix, directory, files,
-                metadataProvider);
+        return uploadFileList(bucketName, virtualDirectoryKeyPrefix, directory, files, metadataProvider);
     }
 
     /**
      * Uploads all specified files to the bucket named, constructing relative keys depending on the
      * commonParentDirectory given.
      * <p>
-     * COS will overwrite any existing objects that happen to have the same key, just as when
-     * uploading individual files, so use with caution.
+     * COS will overwrite any existing objects that happen to have the same key, just as when uploading individual
+     * files, so use with caution.
      * </p>
      *
      * @param bucketName The name of the bucket to upload objects to.
-     * @param virtualDirectoryKeyPrefix The key prefix of the virtual directory to upload to. Use
-     *        the null or empty string to upload files to the root of the bucket.
-     * @param directory The common parent directory of files to upload. The keys of the files in the
-     *        list of files are constructed relative to this directory and the
-     *        virtualDirectoryKeyPrefix.
-     * @param files A list of files to upload. The keys of the files are calculated relative to the
-     *        common parent directory and the virtualDirectoryKeyPrefix.
+     * @param virtualDirectoryKeyPrefix The key prefix of the virtual directory to upload to. Use the null or empty
+     *            string to upload files to the root of the bucket.
+     * @param directory The common parent directory of files to upload. The keys of the files in the list of files are
+     *            constructed relative to this directory and the virtualDirectoryKeyPrefix.
+     * @param files A list of files to upload. The keys of the files are calculated relative to the common parent
+     *            directory and the virtualDirectoryKeyPrefix.
      */
-    public MultipleFileUpload uploadFileList(String bucketName, String virtualDirectoryKeyPrefix,
-            File directory, List<File> files) {
+    public MultipleFileUpload uploadFileList(String bucketName, String virtualDirectoryKeyPrefix, File directory,
+            List<File> files) {
         return uploadFileList(bucketName, virtualDirectoryKeyPrefix, directory, files, null);
     }
 
@@ -966,27 +905,25 @@ public class TransferManager {
      * Uploads all specified files to the bucket named, constructing relative keys depending on the
      * commonParentDirectory given.
      * <p>
-     * COS will overwrite any existing objects that happen to have the same key, just as when
-     * uploading individual files, so use with caution.
+     * COS will overwrite any existing objects that happen to have the same key, just as when uploading individual
+     * files, so use with caution.
      * </p>
      *
      * @param bucketName The name of the bucket to upload objects to.
-     * @param virtualDirectoryKeyPrefix The key prefix of the virtual directory to upload to. Use
-     *        the null or empty string to upload files to the root of the bucket.
-     * @param directory The common parent directory of files to upload. The keys of the files in the
-     *        list of files are constructed relative to this directory and the
-     *        virtualDirectoryKeyPrefix.
-     * @param files A list of files to upload. The keys of the files are calculated relative to the
-     *        common parent directory and the virtualDirectoryKeyPrefix.
-     * @param metadataProvider A callback of type <code>ObjectMetadataProvider</code> which is used
-     *        to provide metadata for each file being uploaded.
+     * @param virtualDirectoryKeyPrefix The key prefix of the virtual directory to upload to. Use the null or empty
+     *            string to upload files to the root of the bucket.
+     * @param directory The common parent directory of files to upload. The keys of the files in the list of files are
+     *            constructed relative to this directory and the virtualDirectoryKeyPrefix.
+     * @param files A list of files to upload. The keys of the files are calculated relative to the common parent
+     *            directory and the virtualDirectoryKeyPrefix.
+     * @param metadataProvider A callback of type <code>ObjectMetadataProvider</code> which is used to provide metadata
+     *            for each file being uploaded.
      */
-    public MultipleFileUpload uploadFileList(String bucketName, String virtualDirectoryKeyPrefix,
-            File directory, List<File> files, ObjectMetadataProvider metadataProvider) {
+    public MultipleFileUpload uploadFileList(String bucketName, String virtualDirectoryKeyPrefix, File directory,
+            List<File> files, ObjectMetadataProvider metadataProvider) {
 
         if (directory == null || !directory.exists() || !directory.isDirectory()) {
-            throw new IllegalArgumentException(
-                    "Must provide a common base directory for uploaded files");
+            throw new IllegalArgumentException("Must provide a common base directory for uploaded files");
         }
 
         if (virtualDirectoryKeyPrefix == null || virtualDirectoryKeyPrefix.length() == 0) {
@@ -1002,16 +939,15 @@ public class TransferManager {
          * Bind additional progress listeners to this MultipleFileTransferProgressUpdatingListener
          * to receive ByteTransferred events from each single-file upload implementation.
          */
-        ProgressListener listener =
-                new MultipleFileTransferProgressUpdatingListener(progress, additionalListeners);
+        ProgressListener listener = new MultipleFileTransferProgressUpdatingListener(progress, additionalListeners);
 
         List<UploadImpl> uploads = new LinkedList<UploadImpl>();
-        MultipleFileUploadImpl multipleFileUpload = new MultipleFileUploadImpl("Uploading etc",
-                progress, additionalListeners, virtualDirectoryKeyPrefix, bucketName, uploads);
+        MultipleFileUploadImpl multipleFileUpload = new MultipleFileUploadImpl("Uploading etc", progress,
+                additionalListeners, virtualDirectoryKeyPrefix, bucketName, uploads);
         multipleFileUpload.setMonitor(new MultipleFileTransferMonitor(multipleFileUpload, uploads));
         final CountDownLatch latch = new CountDownLatch(1);
-        MultipleFileTransferStateChangeListener transferListener =
-                new MultipleFileTransferStateChangeListener(latch, multipleFileUpload);
+        MultipleFileTransferStateChangeListener transferListener = new MultipleFileTransferStateChangeListener(latch,
+                multipleFileUpload);
         if (files == null || files.isEmpty()) {
             multipleFileUpload.setState(TransferState.Completed);
         } else {
@@ -1021,8 +957,10 @@ public class TransferManager {
              * separator between the base directory and the rest of the file's path, so we increment
              * the starting position by one.
              */
-            int startingPosition = directory.getAbsolutePath().length();
-            if (!(directory.getAbsolutePath().endsWith(File.separator)))
+            int startingPosition = directory.getAbsolutePath()
+                    .length();
+            if (!(directory.getAbsolutePath()
+                    .endsWith(File.separator)))
                 startingPosition++;
 
             long totalSize = 0;
@@ -1031,8 +969,9 @@ public class TransferManager {
                 if (f.isFile()) {
                     totalSize += f.length();
 
-                    String key =
-                            f.getAbsolutePath().substring(startingPosition).replaceAll("\\\\", "/");
+                    String key = f.getAbsolutePath()
+                            .substring(startingPosition)
+                            .replaceAll("\\\\", "/");
 
                     ObjectMetadata metadata = new ObjectMetadata();
 
@@ -1047,9 +986,8 @@ public class TransferManager {
                     // MultipleFileTransferProgressUpdatingListener and
                     // MultipleFileTransferStateChangeListener
                     uploads.add((UploadImpl) doUpload(
-                            new PutObjectRequest(bucketName, virtualDirectoryKeyPrefix + key, f)
-                                    .withMetadata(metadata)
-                                    .<PutObjectRequest>withGeneralProgressListener(listener),
+                            new PutObjectRequest(bucketName, virtualDirectoryKeyPrefix + key, f).withMetadata(metadata)
+                                    .<PutObjectRequest> withGeneralProgressListener(listener),
                             transferListener, null, null));
                 }
             }
@@ -1063,8 +1001,8 @@ public class TransferManager {
     }
 
     /**
-     * Lists files in the directory given and adds them to the result list passed in, optionally
-     * adding subdirectories recursively.
+     * Lists files in the directory given and adds them to the result list passed in, optionally adding subdirectories
+     * recursively.
      */
     private void listFiles(File dir, List<File> results, boolean includeSubDirectories) {
         File[] found = dir.listFiles();
@@ -1086,24 +1024,23 @@ public class TransferManager {
      * Aborts any multipart uploads that were initiated before the specified date.
      * </p>
      * <p>
-     * This method is useful for cleaning up any interrupted multipart uploads.
-     * <code>TransferManager</code> attempts to abort any failed uploads, but in some cases this may
-     * not be possible, such as if network connectivity is completely lost.
+     * This method is useful for cleaning up any interrupted multipart uploads. <code>TransferManager</code> attempts to
+     * abort any failed uploads, but in some cases this may not be possible, such as if network connectivity is
+     * completely lost.
      * </p>
      *
      * @param bucketName The name of the bucket containing the multipart uploads to abort.
      * @param date The date indicating which multipart uploads should be aborted.
      */
-    public void abortMultipartUploads(String bucketName, Date date)
-            throws CosServiceException, CosClientException {
-        MultipartUploadListing uploadListing = cos.listMultipartUploads(
-                appendSingleObjectUserAgent(new ListMultipartUploadsRequest(bucketName)));
+    public void abortMultipartUploads(String bucketName, Date date) throws CosServiceException, CosClientException {
+        MultipartUploadListing uploadListing = cos
+                .listMultipartUploads(appendSingleObjectUserAgent(new ListMultipartUploadsRequest(bucketName)));
         do {
             for (MultipartUpload upload : uploadListing.getMultipartUploads()) {
-                if (upload.getInitiated().compareTo(date) < 0) {
-                    cos.abortMultipartUpload(
-                            appendSingleObjectUserAgent(new AbortMultipartUploadRequest(bucketName,
-                                    upload.getKey(), upload.getUploadId())));
+                if (upload.getInitiated()
+                        .compareTo(date) < 0) {
+                    cos.abortMultipartUpload(appendSingleObjectUserAgent(
+                            new AbortMultipartUploadRequest(bucketName, upload.getKey(), upload.getUploadId())));
                 }
             }
 
@@ -1118,40 +1055,39 @@ public class TransferManager {
         String description = "Send image auditing jobs in bulk";
         TransferProgress transferProgress = new TransferProgress();
         List<ImageAuditingImpl> imageAuditingList = new ArrayList<>();
-        final MultipleImageAuditingImpl multipleImageAuditing =
-                new MultipleImageAuditingImpl(description, transferProgress, imageAuditingList);
-        multipleImageAuditing
-                .setMonitor(new MultipleFileTransferMonitor(multipleImageAuditing, imageAuditingList));
+        final MultipleImageAuditingImpl multipleImageAuditing = new MultipleImageAuditingImpl(description,
+                transferProgress, imageAuditingList);
+        multipleImageAuditing.setMonitor(new MultipleFileTransferMonitor(multipleImageAuditing, imageAuditingList));
         final CountDownLatch latch = new CountDownLatch(1);
-        MultipleFileTransferStateChangeListener transferListener =
-                new MultipleFileTransferStateChangeListener(latch, multipleImageAuditing);
+        MultipleFileTransferStateChangeListener transferListener = new MultipleFileTransferStateChangeListener(latch,
+                multipleImageAuditing);
 
         for (ImageAuditingRequest imageAuditingRequest : requestList) {
-            imageAuditingList.add(doImageAuditing(imageAuditingRequest,transferListener));
+            imageAuditingList.add(doImageAuditing(imageAuditingRequest, transferListener));
         }
         latch.countDown();
         return multipleImageAuditing;
     }
 
-    private ImageAuditingImpl doImageAuditing(ImageAuditingRequest request, MultipleFileTransferStateChangeListener transferListener) {
+    private ImageAuditingImpl doImageAuditing(ImageAuditingRequest request,
+            MultipleFileTransferStateChangeListener transferListener) {
         appendImageAuditingUserAgent(request);
         String description = "send image auditing job ";
         TransferProgress transferProgress = new TransferProgress();
         COSProgressListenerChain listenerChain = new COSProgressListenerChain(
-                new TransferProgressUpdatingListener(transferProgress),
-                request.getGeneralProgressListener());
-        ImageAuditingImpl imageAuditing = new ImageAuditingImpl(description,transferProgress,listenerChain,transferListener,request);
+                new TransferProgressUpdatingListener(transferProgress), request.getGeneralProgressListener());
+        ImageAuditingImpl imageAuditing = new ImageAuditingImpl(description, transferProgress, listenerChain,
+                transferListener, request);
         final CountDownLatch latch = new CountDownLatch(1);
-        Future<?> future = threadPool.submit(new ImageAuditingCallable(cos, latch, request,
-                imageAuditing));
+        Future<?> future = threadPool.submit(new ImageAuditingCallable(cos, latch, request, imageAuditing));
         imageAuditing.setMonitor(new ImageAuditingMonitor(imageAuditing, future));
         latch.countDown();
         return imageAuditing;
     }
 
     /**
-     * Forcefully shuts down this TransferManager instance - currently executing transfers will not
-     * be allowed to finish. It also by default shuts down the underlying Qcloud COS client.
+     * Forcefully shuts down this TransferManager instance - currently executing transfers will not be allowed to
+     * finish. It also by default shuts down the underlying Qcloud COS client.
      *
      * @see #shutdownNow(boolean)
      */
@@ -1160,17 +1096,15 @@ public class TransferManager {
     }
 
     /**
-     * Forcefully shuts down this TransferManager instance - currently executing transfers will not
-     * be allowed to finish. Callers should use this method when they either:
+     * Forcefully shuts down this TransferManager instance - currently executing transfers will not be allowed to
+     * finish. Callers should use this method when they either:
      * <ul>
-     * <li>have already verified that their transfers have completed by checking each transfer's
-     * state
+     * <li>have already verified that their transfers have completed by checking each transfer's state
      * <li>need to exit quickly and don't mind stopping transfers before they complete.
      * </ul>
      * <p>
-     * Callers should also remember that uploaded parts from an interrupted upload may not always be
-     * automatically cleaned up, but callers can use {@link #abortMultipartUploads(String, Date)} to
-     * clean up any upload parts.
+     * Callers should also remember that uploaded parts from an interrupted upload may not always be automatically
+     * cleaned up, but callers can use {@link #abortMultipartUploads(String, Date)} to clean up any upload parts.
      *
      * @param shutDownCOSClient Whether to shut down the underlying Qcloud COS client.
      */
@@ -1188,8 +1122,8 @@ public class TransferManager {
     }
 
     /**
-     * Shutdown without interrupting the threads involved, so that, for example, any upload in
-     * progress can complete without throwing {@link AbortedException}.
+     * Shutdown without interrupting the threads involved, so that, for example, any upload in progress can complete
+     * without throwing {@link AbortedException}.
      */
     private void shutdownThreadPools() {
         if (shutDownThreadPools) {
@@ -1199,35 +1133,37 @@ public class TransferManager {
     }
 
     public static <X extends CosServiceRequest> X appendSingleObjectUserAgent(X request) {
-        request.getRequestClientOptions().appendUserAgent(USER_AGENT);
+        request.getRequestClientOptions()
+                .appendUserAgent(USER_AGENT);
         return request;
     }
 
     public static <X extends CosServiceRequest> X appendMultipartUserAgent(X request) {
-        request.getRequestClientOptions().appendUserAgent(USER_AGENT_MULTIPART);
+        request.getRequestClientOptions()
+                .appendUserAgent(USER_AGENT_MULTIPART);
         return request;
     }
 
     public static <X extends CosServiceRequest> X appendImageAuditingUserAgent(X request) {
-        request.getRequestClientOptions().appendUserAgent(USER_AGENT_MULTIPART);
+        request.getRequestClientOptions()
+                .appendUserAgent(USER_AGENT_MULTIPART);
         return request;
     }
 
-    private static final String USER_AGENT =
-            TransferManager.class.getName() + "/" + VersionInfoUtils.getVersion();
-    private static final String USER_AGENT_MULTIPART =
-            TransferManager.class.getName() + "_multipart/" + VersionInfoUtils.getVersion();
-    private static final String USER_AGENT_IMAGE_AUDITING_JOB =
-            TransferManager.class.getName() + "_ImageAuditing/" + VersionInfoUtils.getVersion();
-
+    private static final String USER_AGENT = TransferManager.class.getName() + "/" + VersionInfoUtils.getVersion();
+    private static final String USER_AGENT_MULTIPART = TransferManager.class.getName() + "_multipart/"
+            + VersionInfoUtils.getVersion();
+    /* private static final String USER_AGENT_IMAGE_AUDITING_JOB = TransferManager.class.getName() + "_ImageAuditing/"
+            + VersionInfoUtils.getVersion();*/
 
     private static final String DEFAULT_DELIMITER = "/";
 
     /**
-     * There is no need for threads from timedThreadPool if there is no more running threads in
-     * current process, so we need a daemon thread factory for it.
+     * There is no need for threads from timedThreadPool if there is no more running threads in current process, so we
+     * need a daemon thread factory for it.
      */
     private static final ThreadFactory daemonThreadFactory = new ThreadFactory() {
+
         final AtomicInteger threadCount = new AtomicInteger(0);
 
         public Thread newThread(Runnable r) {
@@ -1385,44 +1321,37 @@ public class TransferManager {
 
     /**
      * Resumes an upload operation. This upload operation uses the same configuration
-     * {@link TransferManagerConfiguration} as the original upload. Any data already uploaded will
-     * be skipped, and only the remaining will be uploaded to Qcloud COS.
+     * {@link TransferManagerConfiguration} as the original upload. Any data already uploaded will be skipped, and only
+     * the remaining will be uploaded to Qcloud COS.
      *
      * @param persistableUpload the upload to resume.
-     * @return A new <code>Upload</code> object to use to check the state of the upload, listen for
-     *         progress notifications, and otherwise manage the upload.
-     *
-     * @throws CosClientException If any errors are encountered in the client while making the
-     *         request or handling the response.
-     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the
-     *         request.
+     * @return A new <code>Upload</code> object to use to check the state of the upload, listen for progress
+     *         notifications, and otherwise manage the upload.
+     * @throws CosClientException If any errors are encountered in the client while making the request or handling the
+     *             response.
+     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the request.
      */
     public Upload resumeUpload(PersistableUpload persistableUpload) {
         assertParameterNotNull(persistableUpload, "PauseUpload is mandatory to resume a upload.");
         configuration.setMinimumUploadPartSize(persistableUpload.getPartSize());
         configuration.setMultipartUploadThreshold(persistableUpload.getMutlipartUploadThreshold());
-        return doUpload(new PutObjectRequest(persistableUpload.getBucketName(),
-                persistableUpload.getKey(), new File(persistableUpload.getFile())), null, null,
-                persistableUpload);
+        return doUpload(new PutObjectRequest(persistableUpload.getBucketName(), persistableUpload.getKey(),
+                new File(persistableUpload.getFile())), null, null, persistableUpload);
     }
 
     /**
-     * Resumes an download operation. This download operation uses the same configuration as the
-     * original download. Any data already fetched will be skipped, and only the remaining data is
-     * retrieved from Qcloud COS.
+     * Resumes an download operation. This download operation uses the same configuration as the original download. Any
+     * data already fetched will be skipped, and only the remaining data is retrieved from Qcloud COS.
      *
      * @param persistableDownload the download to resume.
-     * @return A new <code>Download</code> object to use to check the state of the download, listen
-     *         for progress notifications, and otherwise manage the download.
-     *
-     * @throws CosClientException If any errors are encountered in the client while making the
-     *         request or handling the response.
-     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the
-     *         request.
+     * @return A new <code>Download</code> object to use to check the state of the download, listen for progress
+     *         notifications, and otherwise manage the download.
+     * @throws CosClientException If any errors are encountered in the client while making the request or handling the
+     *             response.
+     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the request.
      */
     public Download resumeDownload(PersistableDownload persistableDownload) {
-        assertParameterNotNull(persistableDownload,
-                "PausedDownload is mandatory to resume a download.");
+        assertParameterNotNull(persistableDownload, "PausedDownload is mandatory to resume a download.");
         GetObjectRequest request = new GetObjectRequest(persistableDownload.getBucketName(),
                 persistableDownload.getKey(), persistableDownload.getVersionId());
         if (persistableDownload.getRange() != null && persistableDownload.getRange().length == 2) {
@@ -1431,86 +1360,74 @@ public class TransferManager {
         }
         request.setResponseHeaders(persistableDownload.getResponseHeaders());
 
-        return doDownload(request, new File(persistableDownload.getFile()), null, null,
-                APPEND_MODE);
+        return doDownload(request, new File(persistableDownload.getFile()), null, null, APPEND_MODE);
     }
 
     /**
      * <p>
-     * Schedules a new transfer to copy data. This method is non-blocking and returns immediately
-     * (before the copy has finished).
+     * Schedules a new transfer to copy data. This method is non-blocking and returns immediately (before the copy has
+     * finished).
      * </p>
      * <p>
-     * <code>TransferManager</code> doesn't support copying of encrypted objects whose encryption
-     * materials are stored in an instruction file.
+     * <code>TransferManager</code> doesn't support copying of encrypted objects whose encryption materials are stored
+     * in an instruction file.
      * </p>
      * <p>
      * Use the returned <code>Copy</code> object to check if the copy is complete.
      * </p>
      * <p>
-     * If resources are available, the copy request will begin immediately. Otherwise, the copy is
-     * scheduled and started as soon as resources become available.
+     * If resources are available, the copy request will begin immediately. Otherwise, the copy is scheduled and started
+     * as soon as resources become available.
      * </p>
      * <p>
-     * <b>Note:</b> If the {@link TransferManager} is created with a regional COS client and the
-     * source & destination buckets are in different regions, use the
-     * {@link #copy(CopyObjectRequest, COS, TransferStateChangeListener)} method.
+     * <b>Note:</b> If the {@link TransferManager} is created with a regional COS client and the source & destination
+     * buckets are in different regions, use the {@link #copy(CopyObjectRequest, COS, TransferStateChangeListener)}
+     * method.
      * </p>
      *
      * @param sourceBucketName The name of the bucket from where the object is to be copied.
      * @param sourceKey The name of the COS object.
      * @param destinationBucketName The name of the bucket to where the COS object has to be copied.
      * @param destinationKey The name of the object in the destination bucket.
-     *
-     * @return A new <code>Copy</code> object to use to check the state of the copy request being
-     *         processed.
-     *
-     * @throws CosClientException If any errors are encountered in the client while making the
-     *         request or handling the response.
-     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the
-     *         request.
-     *
+     * @return A new <code>Copy</code> object to use to check the state of the copy request being processed.
+     * @throws CosClientException If any errors are encountered in the client while making the request or handling the
+     *             response.
+     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the request.
      * @see TransferManager#copy(CopyObjectRequest, COS, TransferStateChangeListener)
      */
 
-    public Copy copy(String sourceBucketName, String sourceKey, String destinationBucketName,
-            String destinationKey) throws CosServiceException, CosClientException {
-        return copy(new CopyObjectRequest(sourceBucketName, sourceKey, destinationBucketName,
-                destinationKey));
+    public Copy copy(String sourceBucketName, String sourceKey, String destinationBucketName, String destinationKey)
+            throws CosServiceException, CosClientException {
+        return copy(new CopyObjectRequest(sourceBucketName, sourceKey, destinationBucketName, destinationKey));
     }
 
     /**
      * <p>
-     * Schedules a new transfer to copy data from one object to another . This method is
-     * non-blocking and returns immediately (i.e. before the copy has finished).
+     * Schedules a new transfer to copy data from one object to another . This method is non-blocking and returns
+     * immediately (i.e. before the copy has finished).
      * </p>
      * <p>
-     * <code>TransferManager</code> doesn't support copying of encrypted objects whose encryption
-     * materials are stored in an instruction file.
+     * <code>TransferManager</code> doesn't support copying of encrypted objects whose encryption materials are stored
+     * in an instruction file.
      * </p>
      * <p>
      * Use the returned <code>Copy</code> object to check if the copy is complete.
      * </p>
      * <p>
-     * If resources are available, the copy request will begin immediately. Otherwise, the copy is
-     * scheduled and started as soon as resources become available.
+     * If resources are available, the copy request will begin immediately. Otherwise, the copy is scheduled and started
+     * as soon as resources become available.
      * </p>
      * <p>
-     * <b>Note:</b> If the {@link TransferManager} is created with a regional COS client and the
-     * source & destination buckets are in different regions, use the
-     * {@link #copy(CopyObjectRequest, COS, TransferStateChangeListener)} method.
+     * <b>Note:</b> If the {@link TransferManager} is created with a regional COS client and the source & destination
+     * buckets are in different regions, use the {@link #copy(CopyObjectRequest, COS, TransferStateChangeListener)}
+     * method.
      * </p>
      *
      * @param copyObjectRequest The request containing all the parameters for the copy.
-     *
-     * @return A new <code>Copy</code> object to use to check the state of the copy request being
-     *         processed.
-     *
-     * @throws CosClientException If any errors are encountered in the client while making the
-     *         request or handling the response.
-     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the
-     *         request.
-     *
+     * @return A new <code>Copy</code> object to use to check the state of the copy request being processed.
+     * @throws CosClientException If any errors are encountered in the client while making the request or handling the
+     *             response.
+     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the request.
      * @see TransferManager#copy(CopyObjectRequest, COS, TransferStateChangeListener)
      */
     public Copy copy(final CopyObjectRequest copyObjectRequest) {
@@ -1519,85 +1436,75 @@ public class TransferManager {
 
     /**
      * <p>
-     * Schedules a new transfer to copy data from one object to another . This method is
-     * non-blocking and returns immediately (i.e. before the copy has finished).
+     * Schedules a new transfer to copy data from one object to another . This method is non-blocking and returns
+     * immediately (i.e. before the copy has finished).
      * </p>
      * <p>
-     * <code>TransferManager</code> doesn't support copying of encrypted objects whose encryption
-     * materials are stored in an instruction file.
+     * <code>TransferManager</code> doesn't support copying of encrypted objects whose encryption materials are stored
+     * in an instruction file.
      * </p>
      * <p>
      * Use the returned <code>Copy</code> object to check if the copy is complete.
      * </p>
      * <p>
-     * If resources are available, the copy request will begin immediately. Otherwise, the copy is
-     * scheduled and started as soon as resources become available.
+     * If resources are available, the copy request will begin immediately. Otherwise, the copy is scheduled and started
+     * as soon as resources become available.
      * </p>
      * <p>
-     * <b>Note:</b> If the {@link TransferManager} is created with a regional COS client and the
-     * source & destination buckets are in different regions, use the
-     * {@link #copy(CopyObjectRequest, COS, TransferStateChangeListener)} method.
+     * <b>Note:</b> If the {@link TransferManager} is created with a regional COS client and the source & destination
+     * buckets are in different regions, use the {@link #copy(CopyObjectRequest, COS, TransferStateChangeListener)}
+     * method.
      * </p>
      *
      * @param copyObjectRequest The request containing all the parameters for the copy.
      * @param stateChangeListener The transfer state change listener to monitor the copy request
-     * @return A new <code>Copy</code> object to use to check the state of the copy request being
-     *         processed.
-     *
-     * @throws CosClientException If any errors are encountered in the client while making the
-     *         request or handling the response.
-     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the
-     *         request.
-     *
+     * @return A new <code>Copy</code> object to use to check the state of the copy request being processed.
+     * @throws CosClientException If any errors are encountered in the client while making the request or handling the
+     *             response.
+     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the request.
      * @see TransferManager#copy(CopyObjectRequest, COS, TransferStateChangeListener)
      */
-    public Copy copy(final CopyObjectRequest copyObjectRequest,
-            final TransferStateChangeListener stateChangeListener)
-                    throws CosClientException, CosServiceException {
+    public Copy copy(final CopyObjectRequest copyObjectRequest, final TransferStateChangeListener stateChangeListener)
+            throws CosClientException, CosServiceException {
         return copy(copyObjectRequest, cos, stateChangeListener);
     }
 
     /**
      * <p>
-     * Schedules a new transfer to copy data from one object to another . This method is
-     * non-blocking and returns immediately (i.e. before the copy has finished).
+     * Schedules a new transfer to copy data from one object to another . This method is non-blocking and returns
+     * immediately (i.e. before the copy has finished).
      * </p>
      * <p>
-     * Note: You need to use this method if the {@link TransferManager} is created with a regional
-     * COS client and the source & destination buckets are in different regions.
+     * Note: You need to use this method if the {@link TransferManager} is created with a regional COS client and the
+     * source & destination buckets are in different regions.
      * </p>
      * <p>
-     * <code>TransferManager</code> doesn't support copying of encrypted objects whose encryption
-     * materials are stored in an instruction file.
+     * <code>TransferManager</code> doesn't support copying of encrypted objects whose encryption materials are stored
+     * in an instruction file.
      * </p>
      * <p>
      * Use the returned <code>Copy</code> object to check if the copy is complete.
      * </p>
      * <p>
-     * If resources are available, the copy request will begin immediately. Otherwise, the copy is
-     * scheduled and started as soon as resources become available.
+     * If resources are available, the copy request will begin immediately. Otherwise, the copy is scheduled and started
+     * as soon as resources become available.
      * </p>
-     *
      * <p>
-     * <b>Note:</b> If the {@link TransferManager} is created with a regional COS client and the
-     * source & destination buckets are in different regions, use the
-     * {@link #copy(CopyObjectRequest, COS, TransferStateChangeListener)} method.
+     * <b>Note:</b> If the {@link TransferManager} is created with a regional COS client and the source & destination
+     * buckets are in different regions, use the {@link #copy(CopyObjectRequest, COS, TransferStateChangeListener)}
+     * method.
      * </p>
      *
      * @param copyObjectRequest The request containing all the parameters for the copy.
-     * @param srcCOS An COS client constructed for the region in which the source object's bucket is
-     *        located.
+     * @param srcCOS An COS client constructed for the region in which the source object's bucket is located.
      * @param stateChangeListener The transfer state change listener to monitor the copy request
-     * @return A new <code>Copy</code> object to use to check the state of the copy request being
-     *         processed.
-     * @throws CosClientException If any errors are encountered in the client while making the
-     *         request or handling the response.
-     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the
-     *         request.
+     * @return A new <code>Copy</code> object to use to check the state of the copy request being processed.
+     * @throws CosClientException If any errors are encountered in the client while making the request or handling the
+     *             response.
+     * @throws CosServiceException If any errors occurred in Qcloud COS while processing the request.
      */
     public Copy copy(final CopyObjectRequest copyObjectRequest, final COS srcCOS,
-            final TransferStateChangeListener stateChangeListener)
-                    throws CosServiceException, CosClientException {
+            final TransferStateChangeListener stateChangeListener) throws CosServiceException, CosClientException {
 
         appendSingleObjectUserAgent(copyObjectRequest);
 
@@ -1612,30 +1519,25 @@ public class TransferManager {
         assertParameterNotNull(srcCOS, "The srcCOS parameter is mandatory");
 
         String description = "Copying object from " + copyObjectRequest.getSourceBucketName() + "/"
-                + copyObjectRequest.getSourceKey() + " to "
-                + copyObjectRequest.getDestinationBucketName() + "/"
+                + copyObjectRequest.getSourceKey() + " to " + copyObjectRequest.getDestinationBucketName() + "/"
                 + copyObjectRequest.getDestinationKey();
 
-
-
-        GetObjectMetadataRequest getObjectMetadataRequest =
-                new GetObjectMetadataRequest(copyObjectRequest.getSourceBucketName(),
-                        copyObjectRequest.getSourceKey())
-                                .withVersionId(copyObjectRequest.getSourceVersionId());
+        GetObjectMetadataRequest getObjectMetadataRequest = new GetObjectMetadataRequest(
+                copyObjectRequest.getSourceBucketName(), copyObjectRequest.getSourceKey())
+                        .withVersionId(copyObjectRequest.getSourceVersionId());
 
         ObjectMetadata metadata = srcCOS.getObjectMetadata(getObjectMetadataRequest);
 
         TransferProgress transferProgress = new TransferProgress();
         transferProgress.setTotalBytesToTransfer(metadata.getContentLength());
 
-        ProgressListenerChain listenerChain =
-                new ProgressListenerChain(new TransferProgressUpdatingListener(transferProgress));
-        CopyImpl copy =
-                new CopyImpl(description, transferProgress, listenerChain, stateChangeListener);
-        CopyCallable copyCallable = new CopyCallable(this, threadPool, copy, copyObjectRequest,
-                metadata, listenerChain);
-        CopyMonitor watcher = CopyMonitor.create(this, copy, threadPool, copyCallable,
-                copyObjectRequest, listenerChain);
+        ProgressListenerChain listenerChain = new ProgressListenerChain(
+                new TransferProgressUpdatingListener(transferProgress));
+        CopyImpl copy = new CopyImpl(description, transferProgress, listenerChain, stateChangeListener);
+        CopyCallable copyCallable = new CopyCallable(this, threadPool, copy, copyObjectRequest, metadata,
+                listenerChain);
+        CopyMonitor watcher = CopyMonitor.create(this, copy, threadPool, copyCallable, copyObjectRequest,
+                listenerChain);
         copy.setMonitor(watcher);
         return copy;
     }
@@ -1647,8 +1549,8 @@ public class TransferManager {
      * </p>
      *
      * @param parameterValue The parameter value being checked.
-     * @param errorMessage The error message to include in the IllegalArgumentException if the
-     *        specified parameter is null.
+     * @param errorMessage The error message to include in the IllegalArgumentException if the specified parameter is
+     *            null.
      */
     private void assertParameterNotNull(Object parameterValue, String errorMessage) {
         if (parameterValue == null)
@@ -1656,8 +1558,7 @@ public class TransferManager {
     }
 
     /**
-     * Releasing all resources created by <code>TransferManager</code> before it is being garbage
-     * collected.
+     * Releasing all resources created by <code>TransferManager</code> before it is being garbage collected.
      */
     @Override
     protected void finalize() throws Throwable {

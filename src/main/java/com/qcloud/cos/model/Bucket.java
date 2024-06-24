@@ -1,20 +1,11 @@
 /*
- * Copyright 2010-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
- *
- *  http://aws.amazon.com/apache2.0
- *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
- 
- * According to cos feature, we modify some class，comment, field name, etc.
+ * Copyright 2010-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. Licensed under the Apache License,
+ * Version 2.0 (the "License"). You may not use this file except in compliance with the License. A copy of the License
+ * is located at http://aws.amazon.com/apache2.0 or in the "license" file accompanying this file. This file is
+ * distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under the License. According to cos feature,
+ * we modify some class，comment, field name, etc.
  */
-
 
 package com.qcloud.cos.model;
 
@@ -22,6 +13,9 @@ import java.io.Serializable;
 import java.util.Date;
 
 public class Bucket implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
     /** The name of this COS bucket */
     private String name = null;
 
@@ -45,14 +39,14 @@ public class Bucket implements Serializable {
      * 
      * @see Bucket#Bucket(String)
      */
-    public Bucket() {}
+    public Bucket() {
+    }
 
     /**
-     * Creates a bucket with a name. All buckets in Qcloud COS share a single namespace; ensure the
-     * bucket is given a unique name.
+     * Creates a bucket with a name. All buckets in Qcloud COS share a single namespace; ensure the bucket is given a
+     * unique name.
      *
      * @param name The name for the bucket.
-     * 
      * @see Bucket#Bucket()
      */
     public Bucket(String name) {
@@ -63,15 +57,14 @@ public class Bucket implements Serializable {
      * @see java.lang.Object#toString()
      */
     public String toString() {
-        return "COSBucket [name=" + getName() + ", creationDate=" + getCreationDate()
-                + ", location=" + getLocation() + ", owner=" + getOwner() + "]";
+        return "COSBucket [name=" + getName() + ", creationDate=" + getCreationDate() + ", location=" + getLocation()
+                + ", owner=" + getOwner() + "]";
     }
 
     /**
      * Gets the bucket's owner. Returns <code>null</code> if the bucket's owner is unknown.
      * 
      * @return The bucket's owner, or <code>null</code> if it is unknown.
-     * 
      * @see Bucket#setOwner(Owner)
      */
     public Owner getOwner() {
@@ -79,11 +72,10 @@ public class Bucket implements Serializable {
     }
 
     /**
-     * For internal use only. Sets the bucket's owner in Qcloud COS. This should only be used
-     * internally by the COS Java client methods that retrieve information directly from Qcloud COS.
+     * For internal use only. Sets the bucket's owner in Qcloud COS. This should only be used internally by the COS Java
+     * client methods that retrieve information directly from Qcloud COS.
      *
      * @param owner The bucket's owner.
-     * 
      * @see Bucket#getOwner()
      */
     public void setOwner(Owner owner) {
@@ -100,8 +92,8 @@ public class Bucket implements Serializable {
     }
 
     /**
-     * For internal use only. Sets the bucket's creation date in COS. This should only be used
-     * internally by COS Java client methods that retrieve information directly from Qcloud COS.
+     * For internal use only. Sets the bucket's creation date in COS. This should only be used internally by COS Java
+     * client methods that retrieve information directly from Qcloud COS.
      *
      * @param creationDate The bucket's creation date.
      */
@@ -113,7 +105,6 @@ public class Bucket implements Serializable {
      * Gets the name of the bucket.
      *
      * @return The name of this bucket.
-     * 
      * @see Bucket#setName(String)
      */
     public String getName() {
@@ -121,8 +112,8 @@ public class Bucket implements Serializable {
     }
 
     /**
-     * Sets the name of the bucket. All buckets in Qcloud COS share a single namespace; ensure the
-     * bucket is given a unique name.
+     * Sets the name of the bucket. All buckets in Qcloud COS share a single namespace; ensure the bucket is given a
+     * unique name.
      *
      * @param name The name for the bucket.
      */

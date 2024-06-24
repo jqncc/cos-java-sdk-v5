@@ -9,10 +9,7 @@
 
 package com.qcloud.cos.utils;
 
-import java.io.UnsupportedEncodingException;
-
-import com.qcloud.cos.exception.CosClientException;
-import com.qcloud.cos.internal.Constants;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Codec internal utilities
@@ -103,21 +100,14 @@ public enum CodecUtils {
         if (value == null) {
             return null;
         }
-        try {
-            return new String(value.getBytes(Constants.UTF8_ENCODING), Constants.ISO_8859_1_ENCODING);
-        } catch (UnsupportedEncodingException e) {
-            throw new CosClientException("Invalid charset name: " + e.getMessage(), e);
-        }
+
+        return new String(value.getBytes(StandardCharsets.UTF_8), StandardCharsets.ISO_8859_1);
     }
 
     public static String convertFromIso88591ToUtf8(String value) {
         if (value == null) {
             return null;
         }
-        try {
-            return new String(value.getBytes(Constants.ISO_8859_1_ENCODING), Constants.UTF8_ENCODING);
-        } catch (UnsupportedEncodingException e) {
-            throw new CosClientException("Invalid charset name: " + e.getMessage(), e);
-        }
+        return new String(value.getBytes(StandardCharsets.ISO_8859_1), StandardCharsets.UTF_8);
     }
 }
