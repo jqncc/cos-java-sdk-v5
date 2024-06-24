@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.Date;
 import java.util.List;
 
@@ -203,5 +204,32 @@ public class StringUtils {
      */
     public static boolean beginsWithIgnoreCase(final String data, final String seq) {
         return data.regionMatches(true, 0, seq, 0, seq.length());
+    }
+
+    public static boolean isRequestPathInvalid(String path) {
+        String[] pathElements = path.split("/");
+        Deque<String> stack = new ArrayDeque<>();
+
+        for (String pathElement : pathElements) {
+            if (Objects.equals(pathElement, "..")) {
+                if (!stack.isEmpty()) {
+                    stack.pollLast();
+                }
+            } else if (pathElement.length() > 0 && !Objects.equals(pathElement, ".")) {
+                stack.offerLast(pathElement);
+            }
+        }
+
+        StringBuffer simplifyPath = new StringBuffer();
+        if (stack.isEmpty()) {
+            simplifyPath.append('/');
+        } else {
+            while (!stack.isEmpty()) {
+                simplifyPath.append('/');
+                simplifyPath.append(stack.pollFirst());
+            }
+        }
+
+        return Objects.equals(simplifyPath.toString(), "/");
     }
 }
